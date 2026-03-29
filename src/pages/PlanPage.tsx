@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X, Navigation, DollarSign, Sun, Footprints, Car, Bus } from 'lucide-react';
 import type { BarbadosDayPlan, BarbadosActivity, ItineraryEvent, TransferLeg, CruiseTouristPreferences } from '../types';
