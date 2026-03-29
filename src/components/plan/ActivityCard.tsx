@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Navigation, Eye, CheckCircle, Clock, ChevronDown, ChevronUp,
+  Globe, UtensilsCrossed as MenuIcon, MapPin as MapPinIcon,
   Waves, Fish, UtensilsCrossed, Wine, Landmark, Drama, Leaf, Music,
   Moon, ShoppingBag, Palette, Car, MapPin,
 } from 'lucide-react';
@@ -24,6 +25,9 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   general: MapPin,
 };
 
+// Food/drinks categories that may have a menu
+const FOOD_CATEGORIES = new Set(['food', 'rum', 'nightlife']);
+
 // Thin wrapper — replace with <img src={iconUrl} /> when custom icons are ready
 const ActivityIcon: React.FC<{ category: string }> = ({ category }) => {
   const Icon = CATEGORY_ICONS[category] ?? MapPin;
@@ -43,7 +47,6 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   index,
   isCheckedIn = false,
   onStreetView,
-  onCheckin,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const gbp = bbdToGbp(activity.cost_bbd);
@@ -51,6 +54,19 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
     activity.google_maps_search_query || activity.address
   )}&travelmode=walking`;
+
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    activity.google_maps_search_query || activity.address
+  )}`;
+
+  // Website button: use activity.website if available, otherwise fall back to Google Maps location
+  // TODO: populate activity.website from Google Places API (place details call using activity.place_id)
+  const websiteUrl = activity.website ?? mapsUrl;
+
+  // Menu button: shown only for food/drinks categories
+  // TODO: populate activity.menu_url from Google Places API or manual curation data
+  const isFoodVenue = FOOD_CATEGORIES.has(activity.category);
+  const menuUrl = activity.menu_url ?? null;
 
   return (
     <div
@@ -60,7 +76,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     >
       {/* Main row */}
       <div className="flex items-center gap-3 px-4 py-3">
-        {/* Icon circle — no number badge */}
+        {/* Icon circle */}
         <div className="flex-shrink-0">
           <div
             className="w-9 h-9 rounded-full flex items-center justify-center"
@@ -95,32 +111,34 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         </div>
       </div>
 
-      {/* Show Details toggle */}
-      <div className="px-4 pb-2">
+      {/* Show Details toggle — right-aligned for right-handed reach */}
+      <div className="px-4 pb-2 flex justify-end">
         <button
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-1 text-xs font-medium"
           style={{ color: '#4A9CB8' }}
         >
-          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           {expanded ? 'Show Less' : 'Show Details'}
+          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
       </div>
 
       {/* Expanded details */}
       {expanded && (
-        <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+        <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-3">
           <p className="text-sm text-gray-600 leading-relaxed">{activity.description}</p>
+
           {activity.why_special && (
             <div className="rounded-lg px-3 py-2" style={{ background: '#f0f7fa' }}>
               <p className="text-xs font-semibold mb-0.5" style={{ color: '#1d3e49' }}>Why it's special</p>
               <p className="text-xs text-gray-600">{activity.why_special}</p>
             </div>
           )}
+
           <p className="text-xs text-gray-400">{activity.address}</p>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1">
             <a
               href={directionsUrl}
               target="_blank"
@@ -129,8 +147,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
               style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
             >
               <Navigation size={13} />
-              Get Directions
+              Directions
             </a>
+
             <button
               onClick={() => onStreetView(activity)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
@@ -139,17 +158,36 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
               <Eye size={13} />
               Street View
             </button>
-            {onCheckin && (
-              <button
-                onClick={() => onCheckin(activity)}
-                disabled={isCheckedIn}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                  isCheckedIn ? 'border-green-200 text-green-500' : 'border-gray-200 text-gray-500 active:bg-gray-50'
-                }`}
+
+            {/* Website / View on Map
+                TODO: when Google Places API is integrated, pass activity.website populated
+                from the place details response (fields: website). Falls back to Google Maps. */}
+            <a
+              href={websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
+              style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
+            >
+              {activity.website ? <Globe size={13} /> : <MapPinIcon size={13} />}
+              {activity.website ? 'Website' : 'View on Map'}
+            </a>
+
+            {/* Menu — shown for food/drinks categories only
+                TODO: populate activity.menu_url from Google Places API (field: menu_for_two,
+                or from the place's website URL heuristically) or manual curation.
+                Only renders when menu_url is present — placeholder hidden until data is available. */}
+            {isFoodVenue && menuUrl && (
+              <a
+                href={menuUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
+                style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
               >
-                <span className="text-sm">{isCheckedIn ? '✅' : '🏷️'}</span>
-                {isCheckedIn ? 'Stamped!' : 'Stamp'}
-              </button>
+                <MenuIcon size={13} />
+                Menu
+              </a>
             )}
           </div>
         </div>

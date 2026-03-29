@@ -63,6 +63,10 @@ export interface BarbadosActivity {
   why_special: string;
   google_maps_search_query: string;
   emoji?: string;
+  // Google Places data — populated when place details are fetched
+  place_id?: string;
+  website?: string;         // from Google Places API
+  menu_url?: string;        // for food/drinks venues — from Google Places or manual curation
   // QR/stamp info (populated when matched to a curated location)
   location_id?: string;
   qr_code_id?: string;
