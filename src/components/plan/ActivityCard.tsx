@@ -121,13 +121,6 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-3">
           <p className="text-sm text-gray-600 leading-relaxed">{activity.description}</p>
 
-          {activity.why_special && (
-            <div className="rounded-lg px-3 py-2" style={{ background: '#f0f7fa' }}>
-              <p className="text-xs font-semibold mb-0.5" style={{ color: '#1d3e49' }}>Why it's special</p>
-              <p className="text-xs text-gray-600">{activity.why_special}</p>
-            </div>
-          )}
-
           <p className="text-xs text-gray-400">{activity.address}</p>
 
           {/* Action buttons */}
