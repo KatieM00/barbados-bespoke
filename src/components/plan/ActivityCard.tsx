@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Navigation, Eye, CheckCircle, Clock, ChevronDown, ChevronUp,
-  Globe, UtensilsCrossed as MenuIcon, MapPin as MapPinIcon,
+  CheckCircle, Clock, ChevronDown, ChevronUp,
+  Globe, UtensilsCrossed as MenuIcon,
   Waves, Fish, UtensilsCrossed, Wine, Landmark, Drama, Leaf, Music,
   Moon, ShoppingBag, Palette, Car, MapPin,
 } from 'lucide-react';
@@ -38,22 +38,15 @@ interface ActivityCardProps {
   activity: BarbadosActivity;
   index: number;
   isCheckedIn?: boolean;
-  onStreetView: (activity: BarbadosActivity) => void;
-  onCheckin?: (activity: BarbadosActivity) => void;
 }
 
 export const ActivityCard: React.FC<ActivityCardProps> = ({
   activity,
   index,
   isCheckedIn = false,
-  onStreetView,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const gbp = bbdToGbp(activity.cost_bbd);
-
-  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-    activity.google_maps_search_query || activity.address
-  )}&travelmode=walking`;
 
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     activity.google_maps_search_query || activity.address
@@ -139,29 +132,10 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2 pt-1">
-            <a
-              href={directionsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
-              style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
-            >
-              <Navigation size={13} />
-              Directions
-            </a>
-
-            <button
-              onClick={() => onStreetView(activity)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
-              style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
-            >
-              <Eye size={13} />
-              Street View
-            </button>
-
-            {/* Website / View on Map
-                TODO: when Google Places API is integrated, pass activity.website populated
-                from the place details response (fields: website). Falls back to Google Maps. */}
+            {/* View Website — always shown, always labelled "View Website"
+                Logic: uses activity.website (from Google Places API) if available,
+                otherwise falls back to Google Maps search URL for this location.
+                TODO: populate activity.website from Places API place details response (field: website) */}
             <a
               href={websiteUrl}
               target="_blank"
@@ -169,14 +143,12 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
               style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
             >
-              {activity.website ? <Globe size={13} /> : <MapPinIcon size={13} />}
-              {activity.website ? 'Website' : 'View on Map'}
+              <Globe size={13} />
+              View Website
             </a>
 
-            {/* Menu — shown for food/drinks categories only
-                TODO: populate activity.menu_url from Google Places API (field: menu_for_two,
-                or from the place's website URL heuristically) or manual curation.
-                Only renders when menu_url is present — placeholder hidden until data is available. */}
+            {/* Menu — shown for food/drinks/nightlife categories only, when menu_url is available
+                TODO: populate activity.menu_url from Google Places API or manual curation */}
             {isFoodVenue && menuUrl && (
               <a
                 href={menuUrl}
