@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
-import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X } from 'lucide-react';
+import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X, Navigation, Calendar, Clock, Users, DollarSign } from 'lucide-react';
 import type { BarbadosDayPlan, BarbadosActivity, ItineraryEvent, TransferLeg, CruiseTouristPreferences } from '../types';
 import { LOADING_MESSAGES, CATEGORY_EMOJIS, bbdToGbp } from '../types';
 import { ActivityCard } from '../components/plan/ActivityCard';
@@ -400,40 +400,88 @@ const PlanPage: React.FC = () => {
   // Build draggable activity list (only activities, interleaved with static transfers in render)
   const activityOnlyEvents = plan.events.filter((e) => e.type === 'activity');
 
-  // Header actions
-  const headerActions = (
-    <div className="flex items-center gap-0.5">
-      <button onClick={handleSave} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition-colors" aria-label="Save plan">
-        <BookmarkPlus size={18} />
-      </button>
-      <button onClick={() => setShowShareSheet(true)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition-colors" aria-label="Share plan">
-        <Share2 size={18} />
-      </button>
-      <button
-        onClick={() => setIsEditing((v) => !v)}
-        className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isEditing ? 'bg-primary-600 text-white' : 'text-gray-500 hover:bg-gray-100 active:bg-gray-200'}`}
-        aria-label={isEditing ? 'Done editing' : 'Edit plan'}
-      >
-        {isEditing ? <Check size={16} /> : <Pencil size={16} />}
-      </button>
-    </div>
-  );
+  // Plan header metadata
+  const totalGbp = Math.round(bbdToGbp(plan.totalCost_bbd));
+  const totalHours = Math.floor(plan.totalDuration_minutes / 60);
+  const totalMins = plan.totalDuration_minutes % 60;
+  const durationLabel = totalMins > 0 ? `${totalHours}h ${totalMins}m` : `${totalHours}h`;
+  const groupLabel: Record<string, string> = {
+    solo: 'Solo', couple: 'Couple', family: 'Family', friends: 'Group of friends',
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50">
-      <MobileHeader title={plan.title} showBack onBack={handleStartOver} rightAction={headerActions} />
+      <MobileHeader title="🌴 Barbados" showBack onBack={handleStartOver} />
+
+      {/* Plan header card */}
+      <div className="mx-3 mt-3 mb-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div
+          className="px-4 pt-4 pb-3"
+          style={{ background: 'linear-gradient(160deg, #1d3e49 0%, #2c5e6e 40%, #3b7d93 100%)' }}
+        >
+          <h2 className="text-white font-bold text-lg leading-tight">{plan.title}</h2>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+            <span className="flex items-center gap-1.5 text-xs text-white/80">
+              <Calendar size={12} />
+              {plan.date ? new Date(plan.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Today'}
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-white/80">
+              <Clock size={12} />
+              {durationLabel}
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-white/80">
+              <DollarSign size={12} />
+              {totalGbp === 0 ? 'Free' : `~£${totalGbp}`}
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-white/80">
+              <Users size={12} />
+              {groupLabel[plan.preferences.groupType] ?? plan.preferences.groupType}
+            </span>
+          </div>
+        </div>
+
+        {/* Action buttons row */}
+        <div className="flex border-t border-gray-100 divide-x divide-gray-100">
+          <button
+            onClick={handleSave}
+            className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold active:bg-gray-50 transition-colors"
+            style={{ color: '#1d3e49' }}
+          >
+            <BookmarkPlus size={15} />
+            Save Plan
+          </button>
+          <button
+            onClick={() => setShowShareSheet(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold active:bg-gray-50 transition-colors"
+            style={{ color: '#1d3e49' }}
+          >
+            <Share2 size={15} />
+            Share
+          </button>
+          <button
+            onClick={() => setIsEditing((v) => !v)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors ${
+              isEditing ? 'text-white' : 'active:bg-gray-50'
+            }`}
+            style={isEditing ? { background: '#4A9CB8', color: 'white' } : { color: '#1d3e49' }}
+          >
+            {isEditing ? <Check size={15} /> : <Pencil size={15} />}
+            {isEditing ? 'Done' : 'Edit Plan'}
+          </button>
+        </div>
+      </div>
 
       {isEditing && (
-        <div className="mx-4 mt-2 mb-1 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex items-center gap-2">
+        <div className="mx-3 mb-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex items-center gap-2">
           <GripVertical size={14} className="text-amber-600 flex-shrink-0" />
           <p className="text-xs text-amber-700 font-medium">
-            Drag to reorder · tap <Trash2 size={11} className="inline" /> to remove · tap <Check size={11} className="inline" /> when done
+            Drag to reorder · tap <Trash2 size={11} className="inline" /> to remove
           </p>
         </div>
       )}
 
       {surpriseMode && !allRevealed && !isEditing && (
-        <div className="mx-4 mb-2 bg-primary-50 border border-primary-200 rounded-xl px-4 py-3 flex items-center gap-3">
+        <div className="mx-3 mb-2 bg-primary-50 border border-primary-200 rounded-xl px-4 py-3 flex items-center gap-3">
           <span className="text-xl">🎲</span>
           <div>
             <p className="text-xs font-semibold text-primary-700">Surprise Mode</p>
@@ -444,7 +492,7 @@ const PlanPage: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 pb-28 px-3 pt-2">
+      <div className="flex-1 pb-28 px-3 pt-1">
         {isEditing ? (
           // ── Drag-and-drop mode ────────────────────────────────────────────────
           <DragDropContext onDragEnd={handleDragEnd}>
@@ -546,12 +594,31 @@ const PlanPage: React.FC = () => {
 
                 if (event.type === 'transfer') {
                   const t = event.data as TransferLeg;
+                  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(t.to)}&origin=${encodeURIComponent(t.from)}&travelmode=${t.mode === 'walking' ? 'walking' : 'driving'}`;
                   return (
-                    <div key={i} className="flex items-center gap-2 px-5 py-1 text-xs text-gray-400">
-                      <span>{TRANSFER_EMOJI[t.mode] ?? '🚕'}</span>
-                      <span>~{t.duration_minutes} min</span>
-                      <div className="flex-1 border-t border-dashed border-gray-200" />
-                      <span>↓</span>
+                    <div key={i} className="flex items-center gap-2 px-4 py-2">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm"
+                        style={{ background: '#ddeef5' }}
+                      >
+                        {TRANSFER_EMOJI[t.mode] ?? '🚕'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-600">
+                          {t.mode.charAt(0).toUpperCase() + t.mode.slice(1)} to next stop
+                        </p>
+                        <p className="text-xs text-gray-400">~{t.duration_minutes} min{t.cost_bbd > 0 ? ` · $${t.cost_bbd} BBD` : ''}</p>
+                      </div>
+                      <a
+                        href={directionsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium flex-shrink-0 active:bg-gray-50 transition-colors"
+                        style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
+                      >
+                        <Navigation size={11} />
+                        Directions
+                      </a>
                     </div>
                   );
                 }
@@ -561,35 +628,45 @@ const PlanPage: React.FC = () => {
           </div>
         )}
 
-        {/* Add more button (always visible, not just in edit mode) */}
-        <button
-          onClick={() => setShowAddMore(true)}
-          className="flex items-center justify-center gap-2 w-full mt-4 py-3 rounded-xl border-2 border-dashed text-sm font-semibold transition-all active:scale-[0.98]"
-          style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
-        >
-          <Plus size={16} />
-          Add more
-        </button>
-
-        {/* Roll the dice + start over */}
-        <div className="mt-3 flex flex-col gap-2">
-          {currentPreferences && (
+        {isEditing ? (
+          /* Edit mode footer */
+          <div className="mt-4 flex flex-col gap-2">
             <button
-              onClick={handleRollDice}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
-              style={{ background: '#E6D055', color: '#1d3e49' }}
+              onClick={() => setShowAddMore(true)}
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-dashed text-sm font-semibold transition-all active:scale-[0.98]"
+              style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
             >
-              <Dice5 size={18} />
-              Roll the dice — try a different plan
+              <Plus size={16} />
+              Add more
             </button>
-          )}
+            {currentPreferences && (
+              <button
+                onClick={handleRollDice}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
+                style={{ background: '#E6D055', color: '#1d3e49' }}
+              >
+                <Dice5 size={18} />
+                Roll the dice — try a different plan
+              </button>
+            )}
+            <button
+              onClick={handleStartOver}
+              className="w-full py-3 rounded-xl border-2 border-primary-600 text-primary-600 font-medium text-sm active:bg-primary-50 transition-all"
+            >
+              Plan a New Day
+            </button>
+          </div>
+        ) : (
+          /* Normal view footer — just save */
           <button
-            onClick={handleStartOver}
-            className="w-full py-3 rounded-xl border-2 border-primary-600 text-primary-600 font-medium text-sm active:bg-primary-50 transition-all"
+            onClick={handleSave}
+            className="flex items-center justify-center gap-2 w-full mt-4 py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
+            style={{ background: '#E6D055', color: '#1d3e49' }}
           >
-            Plan a New Day
+            <BookmarkPlus size={18} />
+            Save this plan
           </button>
-        </div>
+        )}
       </div>
 
       {/* Share sheet */}
