@@ -188,6 +188,8 @@ const PlanPage: React.FC = () => {
       const actCount = generated.events.filter((e) => e.type === 'activity').length;
       setRevealedCount(surprise ? (actCount > 0 ? 1 : 0) : actCount);
       setPlan(generated);
+      sessionStorage.setItem('plan_ready', '1');
+      window.dispatchEvent(new Event('plan_ready'));
       window.scrollTo(0, 0);
     } catch (err) {
       clearInterval(msgInterval);
@@ -230,6 +232,8 @@ const PlanPage: React.FC = () => {
     setError(null);
     setRevealedCount(0);
     setIsEditing(false);
+    sessionStorage.removeItem('plan_ready');
+    window.dispatchEvent(new Event('plan_ready'));
     window.scrollTo(0, 0);
   };
 
@@ -248,6 +252,28 @@ const PlanPage: React.FC = () => {
       showToast('Could not save — storage full');
     }
   };
+
+  // ── Go (from bottom nav) — save + open Maps ───────────────────────────────────
+
+  useEffect(() => {
+    const handleGo = () => {
+      if (!plan) return;
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(plan)); } catch { /* storage full */ }
+      const firstActivity = plan.events.find((e) => e.type === 'activity');
+      const dest = firstActivity
+        ? (firstActivity.data as BarbadosActivity).google_maps_search_query ||
+          (firstActivity.data as BarbadosActivity).address
+        : null;
+      if (dest) {
+        window.open(
+          `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=walking`,
+          '_blank'
+        );
+      }
+    };
+    window.addEventListener('go_pressed', handleGo);
+    return () => window.removeEventListener('go_pressed', handleGo);
+  }, [plan]);
 
   // ── Edit: drag-and-drop ───────────────────────────────────────────────────────
 

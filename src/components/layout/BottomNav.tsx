@@ -10,31 +10,25 @@ const BottomNav: React.FC = () => {
   const isHome = location.pathname === '/';
   const isPlanPage = location.pathname === '/plan';
 
-  const [hasSavedPlan, setHasSavedPlan] = useState(false);
+  const [planReady, setPlanReady] = useState(false);
 
   useEffect(() => {
-    setHasSavedPlan(!!localStorage.getItem(SAVE_KEY));
-  }, [location]);
+    // Check on mount and whenever location changes
+    setPlanReady(isPlanPage && sessionStorage.getItem('plan_ready') === '1');
+
+    const handlePlanReady = () => {
+      setPlanReady(isPlanPage && sessionStorage.getItem('plan_ready') === '1');
+    };
+    window.addEventListener('plan_ready', handlePlanReady);
+    return () => window.removeEventListener('plan_ready', handlePlanReady);
+  }, [location, isPlanPage]);
 
   const handleGoPress = () => {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return;
-    try {
-      const plan = JSON.parse(raw);
-      const firstActivity = plan.events?.find((e: { type: string }) => e.type === 'activity');
-      const dest = firstActivity?.data?.google_maps_search_query || firstActivity?.data?.address;
-      if (dest) {
-        window.open(
-          `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=walking`,
-          '_blank'
-        );
-      }
-    } catch {
-      // malformed data — do nothing
-    }
+    // Dispatch a save request to PlanPage, then open Maps
+    window.dispatchEvent(new Event('go_pressed'));
   };
 
-  const showGo = isPlanPage && hasSavedPlan;
+  const showGo = isPlanPage && planReady;
   const centerLabel = showGo ? 'Go!' : isHome ? 'New Plan' : 'Home';
   const centerAction = showGo
     ? handleGoPress
@@ -61,7 +55,7 @@ const BottomNav: React.FC = () => {
           onClick={() => navigate('/account')}
         />
 
-        {/* Centre button — gold by default, green "Go!" on plan page with saved plan */}
+        {/* Centre button — gold by default, green "Go!" once a plan is generated */}
         <div className="flex-1 flex justify-center">
           <button
             onClick={centerAction}
