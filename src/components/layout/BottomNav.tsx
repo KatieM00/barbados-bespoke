@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Settings, User, ShoppingBag, ScrollText, Play } from 'lucide-react';
+import { Settings, User, Stamp, ScrollText, Play } from 'lucide-react';
 
 const SAVE_KEY = 'barbados_saved_plan';
 
@@ -73,8 +73,8 @@ const BottomNav: React.FC = () => {
         </div>
 
         <NavBtn
-          icon={<ShoppingBag size={20} />}
-          label="Passport"
+          icon={<Stamp size={20} />}
+          label="Stamps"
           active={location.pathname === '/passport'}
           onClick={() => navigate('/passport')}
         />
