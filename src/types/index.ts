@@ -40,10 +40,14 @@ export interface ShipDetails {
 export interface CruiseTouristPreferences {
   shipDetails: ShipDetails;
   groupType: GroupType;
+  groupSize?: number;            // number of people in the group
   vibes: ActivityVibe[];
   meals: MealPreference[];
   budget: BudgetLevel;
-  planDate: string; // ISO date string
+  planDate: string;              // ISO date string
+  specificActivities?: string;   // free-text requests from the user
+  dietaryRequirements?: string;  // e.g. vegetarian, nut allergy
+  accessibilityNeeds?: string;   // e.g. wheelchair, limited mobility
 }
 
 export interface BarbadosActivity {
