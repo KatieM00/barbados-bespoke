@@ -198,7 +198,10 @@ exports.handler = async (event) => {
       };
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const model = genAI.getGenerativeModel(
+      { model: 'gemini-2.0-flash' },
+      { apiVersion: 'v1' }
+    );
     const prompt = buildPrompt(preferences);
 
     console.log('Calling Gemini for Barbados plan...');
