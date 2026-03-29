@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
-import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X, Navigation, Calendar, Clock, Users, DollarSign } from 'lucide-react';
+import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X, Navigation, Calendar, Clock, Users, DollarSign, Sun, Footprints, Car, Bus } from 'lucide-react';
 import type { BarbadosDayPlan, BarbadosActivity, ItineraryEvent, TransferLeg, CruiseTouristPreferences } from '../types';
-import { LOADING_MESSAGES, CATEGORY_EMOJIS, bbdToGbp } from '../types';
+import { LOADING_MESSAGES, bbdToGbp } from '../types';
 import { ActivityCard } from '../components/plan/ActivityCard';
 import StreetViewModal from '../components/plan/StreetViewModal';
 import MobileHeader from '../components/layout/MobileHeader';
@@ -10,8 +10,8 @@ import PlanForm from '../components/plan/PlanForm';
 import type { PlanFormValues } from '../components/plan/PlanForm';
 import { generateBarbadosPlan, searchActivities } from '../services/api';
 
-const TRANSFER_EMOJI: Record<string, string> = {
-  walking: '🚶', taxi: '🚕', minibus: '🚌', driving: '🚗',
+const TRANSFER_ICONS: Record<string, React.ElementType> = {
+  walking: Footprints, taxi: Car, minibus: Bus, driving: Car,
 };
 
 const SAVE_KEY = 'barbados_saved_plan';
@@ -111,7 +111,7 @@ const AddMoreOverlay: React.FC<AddMoreOverlayProps> = ({ onAdd, onClose }) => {
             <p className="text-xs text-center text-gray-400 pt-4">No results found — try a different search</p>
           )}
           {results.map((activity) => {
-            const emoji = activity.emoji ?? CATEGORY_EMOJIS[activity.category] ?? '📍';
+            const emoji = activity.emoji ?? '📍';
             const gbp = bbdToGbp(activity.cost_bbd);
             return (
               <button
@@ -438,6 +438,10 @@ const PlanPage: React.FC = () => {
               {groupLabel[plan.preferences.groupType] ?? plan.preferences.groupType}
             </span>
           </div>
+          <div className="flex items-center gap-1.5 text-xs text-white/70 mt-1.5">
+            <Sun size={12} />
+            <span>28°C · Sunny</span>
+          </div>
         </div>
 
         {/* Action buttons row */}
@@ -595,13 +599,20 @@ const PlanPage: React.FC = () => {
                 if (event.type === 'transfer') {
                   const t = event.data as TransferLeg;
                   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(t.to)}&origin=${encodeURIComponent(t.from)}&travelmode=${t.mode === 'walking' ? 'walking' : 'driving'}`;
+                  const TransportIcon = TRANSFER_ICONS[t.mode] ?? Car;
                   return (
-                    <div key={i} className="flex items-center gap-2 px-4 py-2">
+                    <a
+                      key={i}
+                      href={directionsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl active:bg-blue-50 transition-colors"
+                    >
                       <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm"
+                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{ background: '#ddeef5' }}
                       >
-                        {TRANSFER_EMOJI[t.mode] ?? '🚕'}
+                        <TransportIcon size={14} style={{ color: '#4A9CB8' }} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-gray-600">
@@ -609,17 +620,8 @@ const PlanPage: React.FC = () => {
                         </p>
                         <p className="text-xs text-gray-400">~{t.duration_minutes} min{t.cost_bbd > 0 ? ` · $${t.cost_bbd} BBD` : ''}</p>
                       </div>
-                      <a
-                        href={directionsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium flex-shrink-0 active:bg-gray-50 transition-colors"
-                        style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
-                      >
-                        <Navigation size={11} />
-                        Directions
-                      </a>
-                    </div>
+                      <Navigation size={12} className="text-gray-300 flex-shrink-0" />
+                    </a>
                   );
                 }
                 return null;
@@ -656,17 +658,7 @@ const PlanPage: React.FC = () => {
               Plan a New Day
             </button>
           </div>
-        ) : (
-          /* Normal view footer — just save */
-          <button
-            onClick={handleSave}
-            className="flex items-center justify-center gap-2 w-full mt-4 py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
-            style={{ background: '#E6D055', color: '#1d3e49' }}
-          >
-            <BookmarkPlus size={18} />
-            Save this plan
-          </button>
-        )}
+        ) : null}
       </div>
 
       {/* Share sheet */}

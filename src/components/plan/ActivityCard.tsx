@@ -1,7 +1,34 @@
 import React, { useState } from 'react';
-import { Navigation, Eye, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Navigation, Eye, CheckCircle, Clock, ChevronDown, ChevronUp,
+  Waves, Fish, UtensilsCrossed, Wine, Landmark, Drama, Leaf, Music,
+  Moon, ShoppingBag, Palette, Car, MapPin,
+} from 'lucide-react';
 import type { BarbadosActivity, TransferLeg } from '../../types';
-import { CATEGORY_EMOJIS, bbdToGbp } from '../../types';
+import { bbdToGbp } from '../../types';
+
+// ── Category icon map — swap Lucide component for custom <img> when assets arrive ──
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  beach: Waves,
+  'water-sports': Fish,
+  food: UtensilsCrossed,
+  rum: Wine,
+  history: Landmark,
+  culture: Drama,
+  nature: Leaf,
+  music: Music,
+  nightlife: Moon,
+  markets: ShoppingBag,
+  crafts: Palette,
+  transport: Car,
+  general: MapPin,
+};
+
+// Thin wrapper — replace with <img src={iconUrl} /> when custom icons are ready
+const ActivityIcon: React.FC<{ category: string }> = ({ category }) => {
+  const Icon = CATEGORY_ICONS[category] ?? MapPin;
+  return <Icon size={18} style={{ color: '#4A9CB8' }} />;
+};
 
 interface ActivityCardProps {
   activity: BarbadosActivity;
@@ -19,7 +46,6 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   onCheckin,
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const emoji = activity.emoji || CATEGORY_EMOJIS[activity.category] || '📍';
   const gbp = bbdToGbp(activity.cost_bbd);
 
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
@@ -34,19 +60,13 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     >
       {/* Main row */}
       <div className="flex items-center gap-3 px-4 py-3">
-        {/* Icon circle + number */}
-        <div className="relative flex-shrink-0">
+        {/* Icon circle — no number badge */}
+        <div className="flex-shrink-0">
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-lg"
+            className="w-9 h-9 rounded-full flex items-center justify-center"
             style={{ background: '#ddeef5' }}
           >
-            {emoji}
-          </div>
-          <div
-            className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center"
-            style={{ background: '#4A9CB8' }}
-          >
-            {index + 1}
+            <ActivityIcon category={activity.category} />
           </div>
         </div>
 
@@ -58,17 +78,19 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
           </div>
           <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
             <Clock size={11} />
-            {activity.startTime} – {activity.endTime}
+            {activity.duration_minutes} min
           </p>
         </div>
 
-        {/* Cost */}
+        {/* Cost — local (BBD) big, home (GBP) small */}
         <div className="text-right flex-shrink-0">
-          <p className="text-base font-semibold" style={{ color: '#4A9CB8' }}>
-            {activity.cost_bbd === 0 ? 'Free' : `£${gbp}`}
-          </p>
-          {activity.cost_bbd > 0 && (
-            <p className="text-[10px] text-gray-400">${activity.cost_bbd} BBD</p>
+          {activity.cost_bbd === 0 ? (
+            <p className="text-sm font-semibold" style={{ color: '#4A9CB8' }}>Free</p>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-gray-900">${activity.cost_bbd} BBD</p>
+              {gbp > 0 && <p className="text-[11px] text-gray-400">~£{gbp}</p>}
+            </>
           )}
         </div>
       </div>
@@ -136,19 +158,15 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   );
 };
 
-// Transfer card (simpler)
+// Transfer card (kept for export — not used in PlanPage directly)
 interface TransferCardProps {
   transfer: TransferLeg;
 }
 
 export const TransferCard: React.FC<TransferCardProps> = ({ transfer }) => {
   const modeEmoji: Record<string, string> = {
-    walking: '🚶',
-    taxi: '🚕',
-    minibus: '🚌',
-    driving: '🚗',
+    walking: '🚶', taxi: '🚕', minibus: '🚌', driving: '🚗',
   };
-
   return (
     <div className="flex items-center gap-3 px-4 py-3 mx-1">
       <div className="flex-shrink-0 text-xl">{modeEmoji[transfer.mode] || '🚕'}</div>

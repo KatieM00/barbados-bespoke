@@ -1,18 +1,43 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Settings, User, ShoppingBag, ScrollText } from 'lucide-react';
+import { Settings, User, ShoppingBag, ScrollText, Play } from 'lucide-react';
 
-// DEMO MODE: toggle to preview the "plan in progress" center button state
-const IS_PLAN_ACTIVE = false;
+const SAVE_KEY = 'barbados_saved_plan';
 
 const BottomNav: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isHome = location.pathname === '/';
+  const isPlanPage = location.pathname === '/plan';
 
-  const centerLabel = IS_PLAN_ACTIVE ? 'View Plan' : isHome ? 'New Plan' : 'Home';
-  const centerAction = IS_PLAN_ACTIVE
-    ? () => navigate('/plan')
+  const [hasSavedPlan, setHasSavedPlan] = useState(false);
+
+  useEffect(() => {
+    setHasSavedPlan(!!localStorage.getItem(SAVE_KEY));
+  }, [location]);
+
+  const handleGoPress = () => {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    try {
+      const plan = JSON.parse(raw);
+      const firstActivity = plan.events?.find((e: { type: string }) => e.type === 'activity');
+      const dest = firstActivity?.data?.google_maps_search_query || firstActivity?.data?.address;
+      if (dest) {
+        window.open(
+          `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=walking`,
+          '_blank'
+        );
+      }
+    } catch {
+      // malformed data — do nothing
+    }
+  };
+
+  const showGo = isPlanPage && hasSavedPlan;
+  const centerLabel = showGo ? 'Go!' : isHome ? 'New Plan' : 'Home';
+  const centerAction = showGo
+    ? handleGoPress
     : isHome
     ? () => navigate('/plan')
     : () => navigate('/');
@@ -23,15 +48,12 @@ const BottomNav: React.FC = () => {
         className="mx-3 mb-3 rounded-2xl border border-white/20 flex items-center px-2 py-2 gap-1"
         style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}
       >
-        {/* Settings */}
         <NavBtn
           icon={<Settings size={20} />}
           label="Settings"
           active={location.pathname === '/settings'}
           onClick={() => navigate('/settings')}
         />
-
-        {/* Profile */}
         <NavBtn
           icon={<User size={20} />}
           label="Profile"
@@ -39,28 +61,29 @@ const BottomNav: React.FC = () => {
           onClick={() => navigate('/account')}
         />
 
-        {/* Center gold button */}
+        {/* Centre button — gold by default, green "Go!" on plan page with saved plan */}
         <div className="flex-1 flex justify-center">
           <button
             onClick={centerAction}
             className="flex flex-col items-center justify-center w-16 h-16 rounded-full shadow-lg active:scale-95 transition-transform -mt-6"
-            style={{ background: '#E6D055', color: '#1d3e49' }}
+            style={showGo ? { background: '#22c55e', color: 'white' } : { background: '#E6D055', color: '#1d3e49' }}
             aria-label={centerLabel}
           >
-            <span className="text-xl leading-none">{IS_PLAN_ACTIVE ? '🗺️' : isHome ? '✏️' : '🏠'}</span>
+            {showGo ? (
+              <Play size={20} className="ml-0.5" />
+            ) : (
+              <span className="text-xl leading-none">{isHome ? '✏️' : '🏠'}</span>
+            )}
             <span className="text-[9px] font-bold mt-0.5 leading-tight">{centerLabel}</span>
           </button>
         </div>
 
-        {/* Vault / Passport */}
         <NavBtn
           icon={<ShoppingBag size={20} />}
           label="Passport"
           active={location.pathname === '/passport'}
           onClick={() => navigate('/passport')}
         />
-
-        {/* History / Plans */}
         <NavBtn
           icon={<ScrollText size={20} />}
           label="History"
