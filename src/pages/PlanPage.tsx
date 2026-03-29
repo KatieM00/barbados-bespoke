@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
-import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X, Navigation, Calendar, Clock, Users, DollarSign, Sun, Footprints, Car, Bus } from 'lucide-react';
+import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X, Navigation, DollarSign, Sun, Footprints, Car, Bus } from 'lucide-react';
 import type { BarbadosDayPlan, BarbadosActivity, ItineraryEvent, TransferLeg, CruiseTouristPreferences } from '../types';
 import { LOADING_MESSAGES, bbdToGbp } from '../types';
 import { ActivityCard } from '../components/plan/ActivityCard';
@@ -402,12 +402,6 @@ const PlanPage: React.FC = () => {
 
   // Plan header metadata
   const totalGbp = Math.round(bbdToGbp(plan.totalCost_bbd));
-  const totalHours = Math.floor(plan.totalDuration_minutes / 60);
-  const totalMins = plan.totalDuration_minutes % 60;
-  const durationLabel = totalMins > 0 ? `${totalHours}h ${totalMins}m` : `${totalHours}h`;
-  const groupLabel: Record<string, string> = {
-    solo: 'Solo', couple: 'Couple', family: 'Family', friends: 'Group of friends',
-  };
 
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50">
@@ -420,27 +414,15 @@ const PlanPage: React.FC = () => {
           style={{ background: 'linear-gradient(160deg, #1d3e49 0%, #2c5e6e 40%, #3b7d93 100%)' }}
         >
           <h2 className="text-white font-bold text-lg leading-tight">{plan.title}</h2>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-            <span className="flex items-center gap-1.5 text-xs text-white/80">
-              <Calendar size={12} />
-              {plan.date ? new Date(plan.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Today'}
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-white/80">
-              <Clock size={12} />
-              {durationLabel}
-            </span>
+          <div className="flex items-center gap-4 mt-2">
             <span className="flex items-center gap-1.5 text-xs text-white/80">
               <DollarSign size={12} />
               {totalGbp === 0 ? 'Free' : `~£${totalGbp}`}
             </span>
-            <span className="flex items-center gap-1.5 text-xs text-white/80">
-              <Users size={12} />
-              {groupLabel[plan.preferences.groupType] ?? plan.preferences.groupType}
+            <span className="flex items-center gap-1.5 text-xs text-white/70">
+              <Sun size={12} />
+              28°C · Sunny
             </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-white/70 mt-1.5">
-            <Sun size={12} />
-            <span>28°C · Sunny</span>
           </div>
         </div>
 
