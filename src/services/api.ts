@@ -83,9 +83,6 @@ FOR EACH ACTIVITY RETURN:
 Return in the exact same JSON structure as the existing BarbadosBespoke itinerary format.`;
 }
 
-// ─── Demo mode ───────────────────────────────────────────────────────────────
-// All API calls return mock data so the app works without a backend.
-
 export interface GeneratePlanRequest {
   preferences: CruiseTouristPreferences;
 }
@@ -93,154 +90,19 @@ export interface GeneratePlanRequest {
 export const generateBarbadosPlan = async (
   preferences: CruiseTouristPreferences
 ): Promise<BarbadosDayPlan> => {
-  // Simulate a short loading delay
-  await new Promise(r => setTimeout(r, 2000));
+  const res = await fetch('/.netlify/functions/generate-plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ preferences }),
+  });
 
-  const { startTime, returnTime } = preferences.shipDetails;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(err.error || `Plan generation failed (${res.status})`);
+  }
 
-  const plan: BarbadosDayPlan = {
-    id: 'demo-plan-001',
-    title: '🌴 Barbados',
-    date: new Date().toISOString().split('T')[0],
-    preferences,
-    totalCost_bbd: 180,
-    totalDuration_minutes: 390,
-    special_notes: 'Tip: The ZR minibuses are cheap, fast, and very local. Flag them down on the roadside — exact change preferred!',
-    events: [
-      {
-        type: 'activity',
-        data: {
-          id: 'act-1',
-          name: 'Carlisle Bay Beach',
-          description: 'A beautiful crescent of white sand right in Bridgetown, perfect for a swim or just soaking up the Caribbean sun before the day begins.',
-          address: 'Carlisle Bay, Bridgetown, Barbados',
-          lat: 13.0633,
-          lng: -59.6167,
-          startTime,
-          endTime: addMinutes(startTime, 60),
-          duration_minutes: 60,
-          cost_bbd: 0,
-          category: 'beach',
-          why_special: 'Crystal-clear water with calm waves — ideal for a refreshing morning dip.',
-          google_maps_search_query: 'Carlisle Bay Beach Bridgetown Barbados',
-          emoji: '🏖️',
-        },
-      },
-      {
-        type: 'transfer',
-        data: {
-          id: 'tr-1',
-          from: 'Carlisle Bay Beach',
-          to: 'Oistins Fish Fry',
-          startTime: addMinutes(startTime, 60),
-          endTime: addMinutes(startTime, 90),
-          duration_minutes: 30,
-          mode: 'minibus',
-          cost_bbd: 3.5,
-          notes: 'ZR minibus from Bridgetown to Oistins — about 20 mins, very local experience.',
-        },
-      },
-      {
-        type: 'activity',
-        data: {
-          id: 'act-2',
-          name: 'Oistins Fish Fry',
-          description: 'The most famous lunch spot on the island — fresh-caught fish, flying fish cutter sandwiches, and cold Banks beer at the market stalls.',
-          address: 'Oistins Bay Gardens, Christ Church, Barbados',
-          lat: 13.0667,
-          lng: -59.5383,
-          startTime: addMinutes(startTime, 90),
-          endTime: addMinutes(startTime, 150),
-          duration_minutes: 60,
-          cost_bbd: 40,
-          category: 'food',
-          why_special: 'An unmissable Barbados institution. The fried flying fish here is legendary.',
-          google_maps_search_query: 'Oistins Fish Fry Barbados',
-          emoji: '🐟',
-        },
-      },
-      {
-        type: 'transfer',
-        data: {
-          id: 'tr-2',
-          from: 'Oistins Fish Fry',
-          to: 'Harrison\'s Cave',
-          startTime: addMinutes(startTime, 150),
-          endTime: addMinutes(startTime, 195),
-          duration_minutes: 45,
-          mode: 'taxi',
-          cost_bbd: 35,
-          notes: 'Share a taxi from Oistins — about 25–30 mins through the scenic centre of the island.',
-        },
-      },
-      {
-        type: 'activity',
-        data: {
-          id: 'act-3',
-          name: "Harrison's Cave",
-          description: "Barbados's most spectacular natural attraction — a crystallized limestone cavern with underground streams, waterfalls and stalagmites. Tram tours run every 30 minutes.",
-          address: "Harrison's Cave, Welchman Hall, St. Thomas, Barbados",
-          lat: 13.1789,
-          lng: -59.5791,
-          startTime: addMinutes(startTime, 195),
-          endTime: addMinutes(startTime, 285),
-          duration_minutes: 90,
-          cost_bbd: 80,
-          category: 'nature',
-          why_special: "One of the Caribbean's most impressive geological wonders, right beneath the surface of Barbados.",
-          google_maps_search_query: "Harrison's Cave Barbados",
-          emoji: '🪨',
-        },
-      },
-      {
-        type: 'transfer',
-        data: {
-          id: 'tr-3',
-          from: "Harrison's Cave",
-          to: 'Bridgetown Cruise Terminal',
-          startTime: addMinutes(startTime, 285),
-          endTime: addMinutes(startTime, 345),
-          duration_minutes: 60,
-          mode: 'taxi',
-          cost_bbd: 45,
-          notes: 'Pre-arrange a return taxi at the cave entrance — allow a full hour to get back comfortably.',
-        },
-      },
-      {
-        type: 'activity',
-        data: {
-          id: 'act-4',
-          name: 'Bridgetown Rum Shop Stop',
-          description: 'A classic Bajan rum shop near the terminal for a farewell Rum Punch and a browse of the local craft stalls before heading back to the ship.',
-          address: 'Broad Street, Bridgetown, Barbados',
-          lat: 13.0969,
-          lng: -59.6145,
-          startTime: addMinutes(startTime, 345),
-          endTime: returnTime,
-          duration_minutes: 30,
-          cost_bbd: 25,
-          category: 'rum',
-          why_special: 'The perfect send-off — Barbados has more rum shops per capita than anywhere else in the world.',
-          google_maps_search_query: 'Broad Street Bridgetown Barbados',
-          emoji: '🥃',
-        },
-      },
-    ],
-    created_at: new Date().toISOString(),
-  };
-
-  return plan;
+  return res.json() as Promise<BarbadosDayPlan>;
 };
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function addMinutes(time: string, mins: number): string {
-  const [h, m] = time.split(':').map(Number);
-  const total = h * 60 + m + mins;
-  const hh = Math.floor(total / 60) % 24;
-  const mm = total % 60;
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-}
 
 // ─── Activity search (stubbed) ───────────────────────────────────────────────
 // Returns a small set of Barbados activities matching a free-text query.

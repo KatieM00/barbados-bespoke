@@ -25,41 +25,59 @@ function fixJsonString(jsonString) {
 }
 
 function buildPrompt(preferences) {
-  const { shipDetails, groupType, vibes, budget, planDate } = preferences;
-  const vibeStr = vibes.join(', ');
-  const budgetLabel = budget === 'budget' ? 'Free/cheap - avoid expensive paid attractions'
-    : budget === 'mid' ? 'Mid-range - mix of free and paid activities, moderate restaurant prices'
-    : 'Premium - best local restaurants, private tours, top experiences';
-
+  const { shipDetails, groupType, vibes, budget, meals, specificActivities, dietaryRequirements, accessibilityNeeds } = preferences;
   const startTime = shipDetails.startTime || new Date().toTimeString().slice(0, 5);
   const returnTime = shipDetails.returnTime;
   const availableHours = shipDetails.availableHours || 6;
+  const groupSize = preferences.groupSize || 2;
+  const vibeStr = vibes.join(', ');
+  const mealsStr = meals && meals.length > 0 ? meals.join(', ') : 'none';
+  const specificStr = specificActivities || 'none specified';
+  const dietaryStr = dietaryRequirements || 'none';
+  const accessibilityStr = accessibilityNeeds || 'none';
 
-  return `You are a knowledgeable local Barbados guide helping cruise tourists discover authentic, non-cruise-company experiences for a day ashore.
+  const budgetLabel = budget === 'budget' ? 'budget-friendly — free or cheap activities, avoid expensive paid attractions'
+    : budget === 'mid' ? 'mid-range — mix of free and paid activities, moderate prices'
+    : 'premium — best local restaurants, private tours, top experiences';
 
-Generate a day itinerary for Barbados with these details:
+  return `You are a local Barbados experience expert helping cruise tourists discover authentic, non-touristy experiences. Your goal is to create the perfect personalised day itinerary.
+
+STRICT RULES — NEVER BREAK THESE:
+- Every activity must be a real, named, verifiable place in Barbados
+- Never repeat an activity within the same plan
+- Start time and end time MUST be strictly respected: ${startTime} to ${returnTime}
+- Always build in a 45-minute buffer before ${returnTime} to ensure the user returns to the ship on time
+- Never suggest food or drink stops unless the user has specifically selected a meal (breakfast, lunch, dinner, drinks)
+- Never suggest grocery stores, corner shops or supermarkets — shopping means local markets, boutiques, craft shops and souvenirs
+- Never stack the same type of activity back to back — vary the pace and energy of the day
+- There should always be a natural flow to the day — build in recovery time after high-energy activities
+- EXCLUDE cruise company tours and ship excursion operators — prioritise independent local businesses
+
+PLAN PARAMETERS:
+- Available time: ${availableHours} hours (${startTime} to ${returnTime} minus 45 min buffer)
 - Group type: ${groupType}
-- Available time: approximately ${availableHours} hours (starting ${startTime}, must return by ${returnTime})
-- Interests/vibes: ${vibeStr}
+- Group size: ${groupSize} people
 - Budget: ${budgetLabel}
-- Today's date: ${planDate || new Date().toISOString().split('T')[0]}
+- Selected vibes: ${vibeStr}
+- Specific activities requested by user (MUST include if possible): ${specificStr}
+- Meals requested: ${mealsStr} (place meals at appropriate times — breakfast early, lunch midday, dinner evening. Each meal = 90-120 mins)
 
-CRITICAL RULES:
-1. All activities MUST be in Barbados only
-2. EXCLUDE any cruise company tours, ship excursion operators, or activities marketed to cruise passengers
-3. PRIORITISE independent local businesses, rum shops, beach bars, street food, historical sites, local markets
-4. Starting AND ending location: Bridgetown Cruise Terminal, Bridgetown, Barbados
-5. Account for travel time between locations (Barbados is small, max 45 min coast to coast by taxi)
-6. Include 30 minutes buffer before returnTime for walk back to terminal
-7. All costs in BBD (Barbados Dollars, 1 USD = 2 BBD approx)
-8. Return ONLY valid JSON - no markdown, no code blocks, no apostrophes in values
+USER PROFILE:
+- Dietary requirements: ${dietaryStr} (filter food suggestions accordingly)
+- Accessibility needs: ${accessibilityStr} (flag venues with stairs, uneven terrain, or limited access)
 
-Generate ${Math.floor(availableHours * 0.8)} to ${Math.ceil(availableHours * 1.0)} activities fitting the available time.
+WHEN CHOOSING ACTIVITIES:
+- Match vibes carefully — no party boats for family days, no watersports for relaxing shopping trips
+- Consider group size for activity capacity — some activities have limits
+- Check that activities are likely open at the time suggested (use your knowledge of typical Barbados opening hours)
+- Consider travel time between locations — Barbados is small but Bridgetown traffic can be slow. Budget 15-30 mins between stops
+- Balance the energy of the day — mix active and relaxed moments
+- Prioritise what locals love, hidden gems, and authentic Barbadian experiences over tourist traps
 
-Return this EXACT JSON structure:
+Return ONLY valid JSON — no markdown, no code blocks. Use this EXACT structure:
 {
-  "title": "Your Perfect Barbados Day",
-  "special_notes": "Brief helpful notes for the tourist without apostrophes",
+  "title": "A short evocative title for the day",
+  "special_notes": "One practical local tip for the day",
   "total_cost_bbd": 120,
   "total_duration_minutes": 360,
   "events": [
@@ -68,7 +86,7 @@ Return this EXACT JSON structure:
       "data": {
         "id": "act-1",
         "name": "Activity Name",
-        "description": "Vivid description of what to do and expect without apostrophes",
+        "description": "Warm, personal description in local tone",
         "address": "Full street address, Parish, Barbados",
         "lat": 13.1234,
         "lng": -59.6234,
@@ -77,7 +95,7 @@ Return this EXACT JSON structure:
         "duration_minutes": 90,
         "cost_bbd": 20,
         "category": "beach",
-        "why_special": "What makes this a genuine local experience without apostrophes",
+        "why_special": "What makes this a genuine local experience",
         "google_maps_search_query": "Place Name Barbados",
         "emoji": "🏖️"
       }
@@ -93,16 +111,14 @@ Return this EXACT JSON structure:
         "duration_minutes": 20,
         "mode": "taxi",
         "cost_bbd": 15,
-        "notes": "Take a ZR van or route taxi from the stop on ABC Street"
+        "notes": "Practical directions for getting there"
       }
     }
   ]
 }
 
 Category options: beach, water-sports, food, rum, history, culture, nature, music, nightlife, markets, crafts, transport, general
-Transfer modes: walking, taxi, minibus, driving
-
-Remember: NO apostrophes anywhere, pure JSON only with double quotes!`;
+Transfer modes: walking, taxi, minibus, driving`;
 }
 
 function validatePlan(raw) {
