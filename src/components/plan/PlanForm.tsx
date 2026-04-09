@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   MapPin, Eye, EyeOff, Ship, AlertCircle,
 } from 'lucide-react';
-import type { ShipDetails, GroupType, ActivityVibe, BudgetLevel, MealPreference } from '../../types';
-import { GROUP_OPTIONS } from '../../types';
+import type { ShipDetails, GroupType, ActivityVibe, MustDo, TransportMode, MealPreference } from '../../types';
+import { GROUP_OPTIONS, VIBE_OPTIONS, MUST_DO_OPTIONS } from '../../types';
 import LocationInput from '../common/LocationInput';
 
 export interface PlanFormValues {
@@ -11,8 +11,10 @@ export interface PlanFormValues {
   shipDetails: ShipDetails;
   groupType: GroupType;
   vibes: ActivityVibe[];
+  mustDos: MustDo[];
   meals: MealPreference[];
-  budget: BudgetLevel;
+  budgetGbp: number;
+  transportPreferences: TransportMode[];
   surpriseMode: boolean;
 }
 
@@ -53,7 +55,6 @@ const RollerCol: React.FC<{
 
   return (
     <div className="relative flex-1 overflow-hidden select-none" style={{ height: ITEM_H }}>
-      {/* Row highlight — transparent fill, just top/bottom borders */}
       <div
         className="absolute inset-x-0 z-10 pointer-events-none"
         style={{
@@ -151,7 +152,7 @@ function calcAvailableHours(start: string, end: string): number {
 
 // ─── Step dot indicator ───────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = 10;
 
 const StepDots: React.FC<{ step: number }> = ({ step }) => (
   <div className="flex items-center justify-center gap-1.5 mb-6 flex-shrink-0">
@@ -170,7 +171,6 @@ const StepDots: React.FC<{ step: number }> = ({ step }) => (
 
 // ─── Shared button primitives ─────────────────────────────────────────────────
 
-// Primary / "Next" — gold fill, dark text — maximum contrast & visibility
 const NextBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({
   children, disabled, ...props
 }) => (
@@ -196,7 +196,6 @@ const NextBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({
   </button>
 );
 
-// Back — plain text link, clearly secondary
 const BackBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
   <button
     onClick={onClick}
@@ -215,7 +214,6 @@ const BackBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
   </button>
 );
 
-// Choice chip — unselected: white with border; selected: teal fill
 const ChoiceBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { selected: boolean }> = ({
   children, selected, ...props
 }) => (
@@ -235,6 +233,70 @@ const ChoiceBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { sele
   </button>
 );
 
+// ─── Transport priority colours ───────────────────────────────────────────────
+
+const TRANSPORT_OPTIONS: { id: TransportMode; emoji: string; label: string }[] = [
+  { id: 'walk',             emoji: '🚶', label: 'Walk' },
+  { id: 'public-transport', emoji: '🚌', label: 'Public Transport' },
+  { id: 'taxi',             emoji: '🚕', label: 'Taxi / Private Car' },
+];
+
+const PRIORITY_COLOURS = ['#4A9CB8', '#E6D055', '#6BBF8A'];
+
+// ─── Budget slider ────────────────────────────────────────────────────────────
+
+const BudgetSlider: React.FC<{ value: number; onChange: (v: number) => void }> = ({ value, onChange }) => {
+  const MAX = 200;
+  const pct = (value / MAX) * 100;
+  const displayValue = value >= MAX ? '£200+' : `£${value}`;
+
+  return (
+    <div className="w-full px-2">
+      {/* Tooltip above thumb */}
+      <div className="relative mb-2" style={{ height: 28 }}>
+        <div
+          className="absolute -translate-x-1/2 px-2 py-1 rounded-full text-xs font-bold text-white"
+          style={{
+            left: `${pct}%`,
+            background: '#1d3e49',
+            whiteSpace: 'nowrap',
+            bottom: 0,
+          }}
+        >
+          {displayValue}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
+            style={{ background: '#1d3e49', bottom: -4 }}
+          />
+        </div>
+      </div>
+
+      <input
+        type="range"
+        min={0}
+        max={MAX}
+        step={5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full"
+        style={{
+          accentColor: '#4A9CB8',
+          height: 6,
+        }}
+      />
+
+      <div className="flex justify-between text-xs mt-1" style={{ color: '#94c5d6' }}>
+        <span>£0</span>
+        <span>£200+</span>
+      </div>
+
+      <p className="text-xs text-center mt-3 leading-relaxed" style={{ color: '#7aabb8' }}>
+        Estimated per person for the full day including activities, food and transport
+      </p>
+    </div>
+  );
+};
+
 // ─── Main form ────────────────────────────────────────────────────────────────
 
 const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
@@ -250,8 +312,11 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
   const [groupType, setGroupType] = useState<GroupType>('couple');
   const [selectedVibes, setSelectedVibes] = useState<ActivityVibe[]>([]);
   const [vibeError, setVibeError] = useState('');
-  const [budget, setBudget] = useState<BudgetLevel>('mid');
+  const [selectedMustDos, setSelectedMustDos] = useState<MustDo[]>([]);
   const [selectedMeals, setSelectedMeals] = useState<MealPreference[]>([]);
+  const [budgetGbp, setBudgetGbp] = useState(60);
+  const [transportPrefs, setTransportPrefs] = useState<TransportMode[]>([]);
+  const [transportError, setTransportError] = useState('');
 
   const availableHours = calcAvailableHours(startTime, returnTime);
   const validTimes = returnTime > startTime;
@@ -261,6 +326,22 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
       prev.includes(vibe) ? prev.filter(v => v !== vibe) : [...prev, vibe]
     );
     setVibeError('');
+  };
+
+  const toggleMustDo = (item: MustDo) => {
+    setSelectedMustDos(prev =>
+      prev.includes(item) ? prev.filter(v => v !== item) : [...prev, item]
+    );
+  };
+
+  const toggleTransport = (mode: TransportMode) => {
+    setTransportPrefs(prev => {
+      if (prev.includes(mode)) {
+        return prev.filter(m => m !== mode);
+      }
+      return [...prev, mode];
+    });
+    setTransportError('');
   };
 
   const next = () => setStep(s => s + 1);
@@ -278,8 +359,10 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
       },
       groupType,
       vibes: selectedVibes,
+      mustDos: selectedMustDos,
       meals: selectedMeals,
-      budget,
+      budgetGbp,
+      transportPreferences: transportPrefs,
       surpriseMode,
     });
   };
@@ -452,21 +535,14 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {([
-          { id: 'beach'           as ActivityVibe, label: 'Beach & Water',    icon: '🌊' },
-          { id: 'food-rum'        as ActivityVibe, label: 'Food & Rum',        icon: '🍽️' },
-          { id: 'history-culture' as ActivityVibe, label: 'History & Culture', icon: '🏛️' },
-          { id: 'nature'          as ActivityVibe, label: 'Nature & Outdoors', icon: '🌿' },
-          { id: 'music-nightlife' as ActivityVibe, label: 'Music & Nightlife', icon: '🎵' },
-          { id: 'markets-crafts'  as ActivityVibe, label: 'Markets & Crafts',  icon: '🛍️' },
-        ]).map(({ id, label, icon }) => (
+        {VIBE_OPTIONS.map(({ id, label, emoji }) => (
           <ChoiceBtn
             key={id}
             selected={selectedVibes.includes(id)}
             onClick={() => toggleVibe(id)}
             className="flex flex-col items-center justify-center gap-2 py-5"
           >
-            <span className="text-2xl">{icon}</span>
+            <span className="text-2xl">{emoji}</span>
             <span className="font-semibold text-sm text-center leading-tight px-1">{label}</span>
           </ChoiceBtn>
         ))}
@@ -504,21 +580,14 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {([
-          { id: 'beach'           as ActivityVibe, label: 'Beach & Swimming',  icon: '🏖️' },
-          { id: 'food-rum'        as ActivityVibe, label: 'Food & Drinks',      icon: '🍹' },
-          { id: 'history-culture' as ActivityVibe, label: 'Sights & History',  icon: '🏛️' },
-          { id: 'nature'          as ActivityVibe, label: 'Nature Walks',       icon: '🌴' },
-          { id: 'music-nightlife' as ActivityVibe, label: 'Live Music',         icon: '🎶' },
-          { id: 'markets-crafts'  as ActivityVibe, label: 'Shopping & Markets', icon: '🛍️' },
-        ]).map(({ id, label, icon }) => (
+        {MUST_DO_OPTIONS.map(({ id, label, emoji }) => (
           <ChoiceBtn
             key={id}
-            selected={selectedVibes.includes(id)}
-            onClick={() => toggleVibe(id)}
+            selected={selectedMustDos.includes(id)}
+            onClick={() => toggleMustDo(id)}
             className="flex flex-col items-center justify-center gap-2 py-5"
           >
-            <span className="text-2xl">{icon}</span>
+            <span className="text-2xl">{emoji}</span>
             <span className="font-medium text-sm text-center leading-tight px-2">{label}</span>
           </ChoiceBtn>
         ))}
@@ -526,7 +595,7 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
 
       <div className="flex flex-col gap-1">
         <NextBtn onClick={next}>
-          {selectedVibes.length > 0 ? 'Next →' : 'Skip →'}
+          {selectedMustDos.length > 0 ? 'Next →' : 'Skip →'}
         </NextBtn>
         <BackBtn onClick={back} />
       </div>
@@ -553,9 +622,9 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
 
       <div className="grid grid-cols-2 gap-3">
         {([
-          { id: 'breakfast' as MealPreference, label: 'Breakfast',       icon: '🍳' },
-          { id: 'lunch'     as MealPreference, label: 'Lunch',           icon: '🍽️' },
-          { id: 'dinner'    as MealPreference, label: 'Dinner',          icon: '🌙' },
+          { id: 'breakfast' as MealPreference, label: 'Breakfast',        icon: '🍳' },
+          { id: 'lunch'     as MealPreference, label: 'Lunch',            icon: '🍽️' },
+          { id: 'dinner'    as MealPreference, label: 'Dinner',           icon: '🌙' },
           { id: 'drinks'    as MealPreference, label: 'Drinks & Cocktails', icon: '🍹' },
         ]).map(({ id, label, icon }) => (
           <ChoiceBtn
@@ -595,36 +664,12 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
     <div className="flex flex-col gap-4 w-full">
       <div>
         <h2 className="text-2xl font-bold" style={{ color: '#1d3e49' }}>What's your budget?</h2>
-        <p className="text-sm mt-1" style={{ color: '#4a7a8a' }}>We'll suggest activities that fit.</p>
+        <p className="text-sm mt-1" style={{ color: '#4a7a8a' }}>Drag the slider to set your budget per person.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        {([
-          { id: 'budget'  as BudgetLevel, symbol: '$',   label: 'Free & cheap',  desc: 'Under £20 — beaches, walking, street food' },
-          { id: 'mid'     as BudgetLevel, symbol: '$$',  label: 'Mid-range',     desc: '£20–£60 — tours, sit-down dining, taxis' },
-          { id: 'premium' as BudgetLevel, symbol: '$$$', label: 'Splash out',    desc: '£60+ — premium excursions & restaurants' },
-        ]).map(({ id, symbol, label, desc }) => (
-          <ChoiceBtn
-            key={id}
-            selected={budget === id}
-            onClick={() => setBudget(id)}
-            className="flex items-center gap-4 px-5 py-4 text-left"
-          >
-            <span
-              className="text-2xl font-bold w-10 text-center flex-shrink-0"
-              style={{ color: budget === id ? '#E6D055' : '#4A9CB8' }}
-            >
-              {symbol}
-            </span>
-            <div>
-              <p className="font-bold text-base">{label}</p>
-              <p className="text-xs mt-0.5" style={{ color: budget === id ? 'rgba(255,255,255,0.75)' : '#7aabb8' }}>{desc}</p>
-            </div>
-          </ChoiceBtn>
-        ))}
-      </div>
+      <BudgetSlider value={budgetGbp} onChange={setBudgetGbp} />
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 mt-2">
         <NextBtn onClick={next}>Next →</NextBtn>
         <BackBtn onClick={back} />
       </div>
@@ -632,6 +677,69 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
   );
 
   const renderStep9 = () => (
+    <div className="flex flex-col gap-4 w-full">
+      <div>
+        <h2 className="text-2xl font-bold" style={{ color: '#1d3e49' }}>How will you get around?</h2>
+        <p className="text-sm mt-1" style={{ color: '#4a7a8a' }}>Choose your transport options and set your priority order.</p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {TRANSPORT_OPTIONS.map(({ id, emoji, label }) => {
+          const priorityIdx = transportPrefs.indexOf(id);
+          const isSelected = priorityIdx !== -1;
+          const priorityNum = isSelected ? priorityIdx + 1 : null;
+          const priorityColour = isSelected ? PRIORITY_COLOURS[priorityIdx] : undefined;
+
+          return (
+            <button
+              key={id}
+              onClick={() => toggleTransport(id)}
+              className="relative flex items-center gap-4 px-5 py-4 rounded-2xl text-left transition-all"
+              style={{
+                border: isSelected ? `2px solid ${priorityColour}` : '2px solid #c3dfe8',
+                background: isSelected ? `${priorityColour}18` : '#ffffff',
+              }}
+            >
+              {priorityNum !== null && (
+                <div
+                  className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                  style={{ background: priorityColour }}
+                >
+                  {priorityNum}
+                </div>
+              )}
+              <span className="text-3xl">{emoji}</span>
+              <span className="font-semibold text-base" style={{ color: '#1d3e49' }}>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {transportError && (
+        <div
+          className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl"
+          style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c' }}
+        >
+          <AlertCircle className="h-4 w-4 flex-shrink-0" /> {transportError}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1">
+        <NextBtn
+          disabled={transportPrefs.length === 0}
+          onClick={() => {
+            if (transportPrefs.length === 0) { setTransportError('Select at least one transport option.'); return; }
+            next();
+          }}
+        >
+          Next →
+        </NextBtn>
+        <BackBtn onClick={back} />
+      </div>
+    </div>
+  );
+
+  const renderStep10 = () => (
     <div className="flex flex-col gap-4 w-full">
       <div>
         <h2 className="text-2xl font-bold" style={{ color: '#1d3e49' }}>One last thing…</h2>
@@ -699,8 +807,8 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
   );
 
   const steps = [
-    renderStep1, renderStep2, renderStep3, renderStep4,
-    renderStep5, renderStep6, renderStep7, renderStep8, renderStep9,
+    renderStep1, renderStep2, renderStep3, renderStep4, renderStep5,
+    renderStep6, renderStep7, renderStep8, renderStep9, renderStep10,
   ];
 
   return (
@@ -715,7 +823,6 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
         boxSizing: 'border-box',
       }}
     >
-      {/* Logo — always visible at top, balances the layout */}
       <div
         className="flex items-center gap-2 w-full"
         style={{ maxWidth: 480, paddingTop: 48, paddingBottom: 24 }}
@@ -729,7 +836,6 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
         <span className="text-white font-bold text-lg tracking-tight">BarbadosBespoke</span>
       </div>
 
-      {/* White card */}
       <div
         style={{
           width: '100%',

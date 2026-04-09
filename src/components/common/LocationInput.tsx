@@ -1,9 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Locate } from 'lucide-react';
 
-// DEMO MODE — restore for production:
-// Re-add useEffect, useRef, loadGoogleMapsAPI, initializeAutocomplete,
-// and the VITE_GOOGLE_MAPS_API_KEY script loader.
+// Barbados centre coordinates for Places bias
+const BARBADOS_LAT = 13.1939;
+const BARBADOS_LNG = -59.5432;
+const BARBADOS_RADIUS = 50000; // metres
+
+declare global {
+  interface Window {
+    google?: {
+      maps?: {
+        places?: {
+          AutocompleteService: new () => {
+            getPlacePredictions: (
+              request: object,
+              callback: (results: Array<{ description: string }> | null, status: string) => void
+            ) => void;
+          };
+        };
+      };
+    };
+    initGoogleMapsCallback?: () => void;
+  }
+}
 
 interface LocationInputProps {
   value: string;
@@ -20,6 +39,86 @@ const LocationInput: React.FC<LocationInputProps> = ({
 }) => {
   const [isLocating, setIsLocating] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const autocompleteRef = useRef<InstanceType<typeof window.google.maps.places.AutocompleteService> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load Google Maps script once
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) return;
+    if (window.google?.maps?.places) {
+      autocompleteRef.current = new window.google.maps.places.AutocompleteService();
+      return;
+    }
+    if (document.getElementById('gmap-script')) return;
+
+    window.initGoogleMapsCallback = () => {
+      if (window.google?.maps?.places) {
+        autocompleteRef.current = new window.google.maps.places.AutocompleteService();
+      }
+    };
+
+    const script = document.createElement('script');
+    script.id = 'gmap-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMapsCallback`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const fetchSuggestions = (input: string) => {
+    if (!input.trim() || !autocompleteRef.current) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    autocompleteRef.current.getPlacePredictions(
+      {
+        input,
+        locationBias: {
+          center: { lat: BARBADOS_LAT, lng: BARBADOS_LNG },
+          radius: BARBADOS_RADIUS,
+        },
+        componentRestrictions: { country: 'bb' },
+      },
+      (results, status) => {
+        if (status === 'OK' && results) {
+          setSuggestions(results.map((r) => r.description));
+          setShowDropdown(true);
+        } else {
+          setSuggestions([]);
+          setShowDropdown(false);
+        }
+      }
+    );
+  };
+
+  const handleChange = (v: string) => {
+    onChange(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(v), 300);
+  };
+
+  const handleSelect = (suggestion: string) => {
+    onChange(suggestion);
+    setSuggestions([]);
+    setShowDropdown(false);
+  };
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
@@ -43,7 +142,7 @@ const LocationInput: React.FC<LocationInputProps> = ({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full" ref={containerRef}>
       <div className="flex gap-2">
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -52,13 +151,31 @@ const LocationInput: React.FC<LocationInputProps> = ({
           <input
             type="text"
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => handleChange(e.target.value)}
+            onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
             placeholder={placeholder}
             className={`w-full pl-10 pr-3 py-3 border rounded-lg shadow-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors bg-white text-neutral-900 ${
               error ? 'border-red-300' : 'border-neutral-300'
             }`}
             style={{ fontSize: '16px' }}
+            autoComplete="off"
           />
+          {showDropdown && suggestions.length > 0 && (
+            <ul
+              className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg overflow-hidden"
+              style={{ maxHeight: 220, overflowY: 'auto' }}
+            >
+              {suggestions.map((s, i) => (
+                <li
+                  key={i}
+                  onMouseDown={() => handleSelect(s)}
+                  className="px-4 py-3 text-sm text-neutral-800 cursor-pointer hover:bg-blue-50 border-b border-neutral-100 last:border-0"
+                >
+                  {s}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <button
           type="button"

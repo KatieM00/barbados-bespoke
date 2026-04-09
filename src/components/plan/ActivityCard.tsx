@@ -38,12 +38,16 @@ interface ActivityCardProps {
   activity: BarbadosActivity;
   index: number;
   isCheckedIn?: boolean;
+  onStreetView?: (activity: BarbadosActivity) => void;
+  onCheckin?: (activity: BarbadosActivity) => void;
 }
 
 export const ActivityCard: React.FC<ActivityCardProps> = ({
   activity,
-  index,
+  index: _index,
   isCheckedIn = false,
+  onStreetView,
+  onCheckin,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const gbp = bbdToGbp(activity.cost_bbd);

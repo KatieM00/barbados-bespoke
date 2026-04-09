@@ -17,15 +17,24 @@ export type BarbadosActivityCategory =
 
 export type GroupType = 'solo' | 'couple' | 'family' | 'group';
 
-export type BudgetLevel = 'budget' | 'mid' | 'premium';
-
 export type ActivityVibe =
+  | 'relaxing'
+  | 'cultural'
+  | 'active'
+  | 'romantic'
+  | 'party'
+  | 'luxurious'
+  | 'thrill-seeking';
+
+export type MustDo =
   | 'beach'
-  | 'food-rum'
-  | 'history-culture'
+  | 'music'
+  | 'shopping'
   | 'nature'
-  | 'music-nightlife'
-  | 'markets-crafts';
+  | 'water-sports'
+  | 'party';
+
+export type TransportMode = 'walk' | 'public-transport' | 'taxi';
 
 export type MealPreference = 'breakfast' | 'lunch' | 'dinner' | 'drinks' | 'skip';
 
@@ -42,12 +51,15 @@ export interface CruiseTouristPreferences {
   groupType: GroupType;
   groupSize?: number;            // number of people in the group
   vibes: ActivityVibe[];
+  mustDos: MustDo[];
   meals: MealPreference[];
-  budget: BudgetLevel;
+  budgetGbp: number;             // per person in GBP (0–200, 200 means 200+)
+  transportPreferences: TransportMode[]; // ordered by priority
   planDate: string;              // ISO date string
   specificActivities?: string;   // free-text requests from the user
   dietaryRequirements?: string;  // e.g. vegetarian, nut allergy
   accessibilityNeeds?: string;   // e.g. wheelchair, limited mobility
+  previouslySuggested?: string;  // comma-separated list of venue names from prior plans this session
 }
 
 export interface BarbadosActivity {
@@ -142,37 +154,49 @@ export const LOADING_MESSAGES = [
 ];
 
 export const VIBE_OPTIONS: { id: ActivityVibe; emoji: string; label: string }[] = [
-  { id: 'beach', emoji: '🌊', label: 'Beach & Water' },
-  { id: 'food-rum', emoji: '🍽️', label: 'Food & Rum' },
-  { id: 'history-culture', emoji: '🏛️', label: 'History & Culture' },
-  { id: 'nature', emoji: '🌿', label: 'Nature & Outdoors' },
-  { id: 'music-nightlife', emoji: '🎵', label: 'Local Music & Nightlife' },
-  { id: 'markets-crafts', emoji: '🛍️', label: 'Local Markets & Crafts' },
+  { id: 'relaxing',      emoji: '🌅', label: 'Relaxing' },
+  { id: 'cultural',      emoji: '🏛️', label: 'Cultural' },
+  { id: 'active',        emoji: '⚡', label: 'Active' },
+  { id: 'romantic',      emoji: '💫', label: 'Romantic' },
+  { id: 'party',         emoji: '🎉', label: 'Party' },
+  { id: 'luxurious',     emoji: '✨', label: 'Luxurious' },
+  { id: 'thrill-seeking', emoji: '🔥', label: 'Thrill Seeking' },
 ];
 
-export const BUDGET_OPTIONS: { id: BudgetLevel; symbol: string; label: string }[] = [
-  { id: 'budget', symbol: '$', label: 'Free/Cheap' },
-  { id: 'mid', symbol: '$$', label: 'Mid-range' },
-  { id: 'premium', symbol: '$$$', label: 'Splash out' },
+export const MUST_DO_OPTIONS: { id: MustDo; emoji: string; label: string }[] = [
+  { id: 'beach',        emoji: '🏖️', label: 'Beach' },
+  { id: 'music',        emoji: '🎵', label: 'Music' },
+  { id: 'shopping',     emoji: '🛍️', label: 'Shopping' },
+  { id: 'nature',       emoji: '🌿', label: 'Nature' },
+  { id: 'water-sports', emoji: '🤿', label: 'Water Sports' },
+  { id: 'party',        emoji: '🎉', label: 'Party' },
 ];
 
 export const GROUP_OPTIONS: { id: GroupType; emoji: string; label: string }[] = [
-  { id: 'solo', emoji: '🧍', label: 'Solo' },
+  { id: 'solo',   emoji: '🧍', label: 'Solo' },
   { id: 'couple', emoji: '👫', label: 'Couple' },
   { id: 'family', emoji: '👨‍👩‍👧', label: 'Family' },
-  { id: 'group', emoji: '👥', label: 'Group' },
+  { id: 'group',  emoji: '👥', label: 'Group' },
 ];
 
 // Currency helpers
 export const BBD_TO_GBP = 0.38;
 export const BBD_TO_USD = 0.50;
+export const GBP_TO_BBD = 1 / BBD_TO_GBP;
 
 export function bbdToGbp(bbd: number): number {
+  if (!bbd || isNaN(bbd)) return 0;
   return Math.round(bbd * BBD_TO_GBP * 100) / 100;
 }
 
 export function bbdToUsd(bbd: number): number {
+  if (!bbd || isNaN(bbd)) return 0;
   return Math.round(bbd * BBD_TO_USD * 100) / 100;
+}
+
+export function gbpToBbd(gbp: number): number {
+  if (!gbp || isNaN(gbp)) return 0;
+  return Math.round(gbp * GBP_TO_BBD);
 }
 
 export const CATEGORY_EMOJIS: Record<BarbadosActivityCategory, string> = {

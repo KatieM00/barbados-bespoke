@@ -188,6 +188,12 @@ const PlanPage: React.FC = () => {
       const actCount = generated.events.filter((e) => e.type === 'activity').length;
       setRevealedCount(surprise ? (actCount > 0 ? 1 : 0) : actCount);
       setPlan(generated);
+      // Store venue names from this plan to avoid repetition in future generations this session
+      const venueNames = generated.events
+        .filter((e) => e.type === 'activity')
+        .map((e) => (e.data as BarbadosActivity).name)
+        .filter(Boolean);
+      setSessionSuggestions((prev) => [...new Set([...prev, ...venueNames])]);
       sessionStorage.setItem('plan_ready', '1');
       window.dispatchEvent(new Event('plan_ready'));
       window.scrollTo(0, 0);
@@ -199,14 +205,21 @@ const PlanPage: React.FC = () => {
     }
   };
 
+  // Track venue names suggested this session to avoid repetition
+  // TODO: Replace sessionSuggestions with user's full Supabase plan history when history saving is implemented
+  const [sessionSuggestions, setSessionSuggestions] = useState<string[]>([]);
+
   const handleSubmit = async (values: PlanFormValues) => {
     const preferences: CruiseTouristPreferences = {
       shipDetails: values.shipDetails,
       groupType: values.groupType,
       vibes: values.vibes,
+      mustDos: values.mustDos,
       meals: values.meals,
-      budget: values.budget,
+      budgetGbp: values.budgetGbp,
+      transportPreferences: values.transportPreferences,
       planDate: new Date().toISOString().split('T')[0],
+      previouslySuggested: sessionSuggestions.length > 0 ? sessionSuggestions.join(', ') : undefined,
     };
     setCurrentPreferences(preferences);
     await runGeneration(preferences, values.surpriseMode);
