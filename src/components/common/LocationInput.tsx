@@ -1,29 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Locate } from 'lucide-react';
 
-// Barbados centre coordinates for Places bias
-const BARBADOS_LAT = 13.1939;
-const BARBADOS_LNG = -59.5432;
-const BARBADOS_RADIUS = 50000; // metres
-
-declare global {
-  interface Window {
-    google?: {
-      maps?: {
-        places?: {
-          AutocompleteService: new () => {
-            getPlacePredictions: (
-              request: object,
-              callback: (results: Array<{ description: string }> | null, status: string) => void
-            ) => void;
-          };
-        };
-      };
-    };
-    initGoogleMapsCallback?: () => void;
-  }
-}
-
 interface LocationInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -41,33 +18,8 @@ const LocationInput: React.FC<LocationInputProps> = ({
   const [locateError, setLocateError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const autocompleteRef = useRef<InstanceType<typeof window.google.maps.places.AutocompleteService> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Load Google Maps script once
-  useEffect(() => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return;
-    if (window.google?.maps?.places) {
-      autocompleteRef.current = new window.google.maps.places.AutocompleteService();
-      return;
-    }
-    if (document.getElementById('gmap-script')) return;
-
-    window.initGoogleMapsCallback = () => {
-      if (window.google?.maps?.places) {
-        autocompleteRef.current = new window.google.maps.places.AutocompleteService();
-      }
-    };
-
-    const script = document.createElement('script');
-    script.id = 'gmap-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMapsCallback`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -80,32 +32,30 @@ const LocationInput: React.FC<LocationInputProps> = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const fetchSuggestions = (input: string) => {
-    if (!input.trim() || !autocompleteRef.current) {
+  const fetchSuggestions = async (input: string) => {
+    if (!input.trim() || input.length < 2) {
       setSuggestions([]);
       setShowDropdown(false);
       return;
     }
 
-    autocompleteRef.current.getPlacePredictions(
-      {
-        input,
-        locationBias: {
-          center: { lat: BARBADOS_LAT, lng: BARBADOS_LNG },
-          radius: BARBADOS_RADIUS,
-        },
-        componentRestrictions: { country: 'bb' },
-      },
-      (results, status) => {
-        if (status === 'OK' && results) {
-          setSuggestions(results.map((r) => r.description));
-          setShowDropdown(true);
-        } else {
-          setSuggestions([]);
-          setShowDropdown(false);
-        }
-      }
-    );
+    try {
+      const res = await fetch('/.netlify/functions/places-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: input }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const places: Array<{ formattedAddress?: string; displayName?: { text?: string } }> = data.places ?? [];
+      const labels = places
+        .map((p) => p.formattedAddress ?? p.displayName?.text ?? '')
+        .filter(Boolean);
+      setSuggestions(labels);
+      setShowDropdown(labels.length > 0);
+    } catch {
+      // Fail silently — user can still type manually
+    }
   };
 
   const handleChange = (v: string) => {

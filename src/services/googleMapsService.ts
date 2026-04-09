@@ -1,37 +1,12 @@
-import { Loader } from '@googlemaps/js-api-loader';
+// All Google Places API (New) calls are proxied through Netlify functions.
+// No API key is ever exposed to the frontend.
 
-// Barbados centre — fixed, never geocoded
-const BARBADOS = { lat: 13.1939, lng: -59.5432 };
-const BARBADOS_RADIUS = 50000;
-
-let placesService: google.maps.places.PlacesService | null = null;
-let loaderPromise: Promise<void> | null = null;
-
-function getApiKey(): string {
-  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '';
+export interface PlacePhoto {
+  name: string; // e.g. "places/PLACE_ID/photos/PHOTO_ID"
 }
 
-export async function initPlacesService(): Promise<void> {
-  if (placesService) return;
-  if (loaderPromise) return loaderPromise;
-
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    console.warn('VITE_GOOGLE_MAPS_API_KEY is not set — Google Maps features disabled');
-    return;
-  }
-
-  loaderPromise = new Loader({
-    apiKey,
-    version: 'weekly',
-    libraries: ['places'],
-  }).load().then(() => {
-    // PlacesService requires a DOM element or Map instance
-    const el = document.createElement('div');
-    placesService = new google.maps.places.PlacesService(el);
-  });
-
-  return loaderPromise;
+export interface PlaceOpeningHours {
+  weekdayDescriptions?: string[]; // Places API (New) field name
 }
 
 export interface PlaceResult {
@@ -40,84 +15,80 @@ export interface PlaceResult {
   address: string;
   rating?: number;
   userRatingsTotal?: number;
-  photos?: google.maps.places.PlacePhoto[];
-  openingHours?: google.maps.places.PlaceOpeningHours;
+  photos?: PlacePhoto[];
+  openingHours?: PlaceOpeningHours;
   website?: string;
-  geometry?: google.maps.places.PlaceGeometry;
 }
 
-export async function searchPlaces(
-  query: string,
-): Promise<PlaceResult[]> {
-  await initPlacesService();
-  if (!placesService) return [];
+// ─── Search ───────────────────────────────────────────────────────────────────
 
-  return new Promise((resolve) => {
-    const request: google.maps.places.TextSearchRequest = {
-      query,
-      location: new google.maps.LatLng(BARBADOS.lat, BARBADOS.lng),
-      radius: BARBADOS_RADIUS,
-    };
-
-    placesService!.textSearch(request, (results, status) => {
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !results) {
-        resolve([]);
-        return;
-      }
-
-      resolve(
-        results.slice(0, 5).map((r) => ({
-          placeId: r.place_id ?? '',
-          name: r.name ?? '',
-          address: r.formatted_address ?? '',
-          rating: r.rating,
-          userRatingsTotal: r.user_ratings_total,
-          photos: r.photos,
-          geometry: r.geometry as google.maps.places.PlaceGeometry,
-        }))
-      );
+export async function searchPlaces(query: string): Promise<PlaceResult[]> {
+  try {
+    const res = await fetch('/.netlify/functions/places-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
     });
-  });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const places: unknown[] = data.places ?? [];
+    return places.map(mapPlace);
+  } catch {
+    return [];
+  }
 }
+
+// ─── Details ─────────────────────────────────────────────────────────────────
 
 export async function getPlaceDetails(placeId: string): Promise<PlaceResult | null> {
-  await initPlacesService();
-  if (!placesService) return null;
-
-  return new Promise((resolve) => {
-    const request: google.maps.places.PlaceDetailsRequest = {
-      placeId,
-      fields: [
-        'place_id', 'name', 'formatted_address', 'rating',
-        'user_ratings_total', 'photos', 'opening_hours',
-        'website', 'geometry',
-      ],
-    };
-
-    placesService!.getDetails(request, (result, status) => {
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !result) {
-        resolve(null);
-        return;
-      }
-
-      resolve({
-        placeId: result.place_id ?? '',
-        name: result.name ?? '',
-        address: result.formatted_address ?? '',
-        rating: result.rating,
-        userRatingsTotal: result.user_ratings_total,
-        photos: result.photos,
-        openingHours: result.opening_hours,
-        website: result.website,
-        geometry: result.geometry as google.maps.places.PlaceGeometry,
-      });
+  try {
+    const res = await fetch('/.netlify/functions/places-details', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placeId }),
     });
-  });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.place) return null;
+    return mapPlace(data.place);
+  } catch {
+    return null;
+  }
 }
 
-export function getPlacePhoto(
-  photo: google.maps.places.PlacePhoto,
-  maxWidth = 400,
-): string {
-  return photo.getUrl({ maxWidth });
+// ─── Photo ────────────────────────────────────────────────────────────────────
+
+export async function getPlacePhoto(photo: PlacePhoto, maxWidth = 400): Promise<string> {
+  try {
+    const res = await fetch('/.netlify/functions/places-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photoName: photo.name, maxWidth }),
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return data.photoUrl ?? '';
+  } catch {
+    return '';
+  }
+}
+
+// ─── Mapper ───────────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapPlace(p: any): PlaceResult {
+  return {
+    placeId: p.id ?? '',
+    name: p.displayName?.text ?? p.name ?? '',
+    address: p.formattedAddress ?? '',
+    rating: p.rating,
+    userRatingsTotal: p.userRatingCount,
+    photos: Array.isArray(p.photos)
+      ? p.photos.map((ph: { name: string }) => ({ name: ph.name }))
+      : undefined,
+    openingHours: p.regularOpeningHours
+      ? { weekdayDescriptions: p.regularOpeningHours.weekdayDescriptions }
+      : undefined,
+    website: p.websiteUri,
+  };
 }

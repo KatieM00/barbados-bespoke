@@ -81,10 +81,12 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
       setPlaceDetails(details);
 
-      // Load up to 3 photos
+      // Load up to 3 photos (getPlacePhoto is now async — fetch all in parallel)
       if (details.photos && details.photos.length > 0) {
-        const urls = details.photos.slice(0, 3).map((p) => getPlacePhoto(p, 400));
-        setPhotoUrls(urls);
+        const urls = await Promise.all(
+          details.photos.slice(0, 3).map((p) => getPlacePhoto(p, 400))
+        );
+        setPhotoUrls(urls.filter(Boolean));
       }
     } catch {
       // Fail silently — card still shows its content without Maps data
@@ -101,11 +103,12 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   };
 
   // Get today's opening hours string if available
-  const todayHours = placeDetails?.openingHours?.weekday_text
+  // weekdayDescriptions is Mon–Sun (index 0 = Monday)
+  const todayHours = placeDetails?.openingHours?.weekdayDescriptions
     ? (() => {
         const day = new Date().getDay(); // 0 = Sunday
-        const idx = day === 0 ? 6 : day - 1; // weekday_text is Mon–Sun
-        return placeDetails.openingHours!.weekday_text![idx] ?? null;
+        const idx = day === 0 ? 6 : day - 1;
+        return placeDetails.openingHours!.weekdayDescriptions![idx] ?? null;
       })()
     : null;
 
