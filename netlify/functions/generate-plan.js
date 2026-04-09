@@ -199,8 +199,8 @@ exports.handler = async (event) => {
     }
 
     const model = genAI.getGenerativeModel(
-      { model: 'gemini-2.0-flash' },
-      { apiVersion: 'v1' }
+      { model: 'gemini-2.5-flash-lite' },
+      { apiVersion: 'v1beta' }
     );
     const prompt = buildPrompt(preferences);
 
