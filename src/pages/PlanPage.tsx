@@ -456,7 +456,12 @@ const PlanPage: React.FC = () => {
           <div className="flex items-center gap-4 mt-2">
             <span className="flex items-center gap-1.5 text-xs text-white/80">
               <DollarSign size={12} />
-              {totalGbp === 0 ? 'Free' : `~£${totalGbp}`}
+              {plan.totalCost_bbd === 0 ? 'Free' : (
+                <span className="flex flex-col leading-tight">
+                  <span>BBD ${plan.totalCost_bbd}</span>
+                  <span className="text-white/60 text-[10px]">≈ £{totalGbp}</span>
+                </span>
+              )}
             </span>
             <span className="flex items-center gap-1.5 text-xs text-white/70">
               <Sun size={12} />

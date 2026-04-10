@@ -10,6 +10,8 @@ import { bbdToGbp } from '../../types';
 import { searchPlaces, getPlaceDetails, getPlacePhoto } from '../../services/googleMapsService';
 import type { PlaceResult } from '../../services/googleMapsService';
 
+const SELECTED_BG = '#E6D055';
+
 // ── Category icon map — swap Lucide component for custom <img> when assets arrive ──
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   beach: Waves,
@@ -45,12 +47,13 @@ interface ActivityCardProps {
 }
 
 export const ActivityCard: React.FC<ActivityCardProps> = ({
-  activity,
+  activity: activityProp,
   index: _index,
   isCheckedIn = false,
   onStreetView: _onStreetView,
   onCheckin: _onCheckin,
 }) => {
+  const [activity, setActivity] = useState(activityProp);
   const [expanded, setExpanded] = useState(false);
   const [placeDetails, setPlaceDetails] = useState<PlaceResult | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -59,13 +62,19 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const gbp = bbdToGbp(activity.cost_bbd);
 
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    activity.google_maps_search_query || activity.address
-  )}`;
+  // For geographic activities, use Street View / panorama URL when coordinates are available
+  const mapsUrl = activity.is_geographic && activity.lat && activity.lng
+    ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${activity.lat},${activity.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        activity.google_maps_search_query || activity.address
+      )}`;
 
-  const websiteUrl = placeDetails?.website ?? activity.website ?? mapsUrl;
   const isFoodVenue = FOOD_CATEGORIES.has(activity.category);
   const menuUrl = activity.menu_url ?? null;
+
+  // Website: only show if verified_website exists and activity is not geographic
+  const showWebsite = !activity.is_geographic && !!activity.verified_website;
+  const websiteUrl = activity.verified_website ?? '';
 
   const loadPlacesData = async () => {
     if (placesLoaded || placesLoading) return;
@@ -111,6 +120,75 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         return placeDetails.openingHours!.weekdayDescriptions![idx] ?? null;
       })()
     : null;
+
+  // ── Conflict card (free vs paid) ─────────────────────────────────────────────
+  if (activity.has_free_alternative && activity.free_alternative) {
+    const alt = activity.free_alternative;
+    const choice = activity.user_choice ?? null;
+
+    const handleChoice = (picked: 'free' | 'paid' | 'both') => {
+      setActivity(prev => ({ ...prev, user_choice: picked }));
+    };
+
+    const freeSelected  = choice === 'free';
+    const paidSelected  = choice === 'paid';
+    const bothSelected  = choice === 'both';
+
+    const cardBase = 'flex-1 rounded-xl border-2 p-3 flex flex-col gap-1 transition-all cursor-pointer';
+
+    return (
+      <div className="mx-1 flex flex-col gap-2">
+        <div className="flex gap-2">
+          {/* Free option */}
+          <button
+            className={cardBase}
+            style={{
+              background: freeSelected ? SELECTED_BG : '#ffffff',
+              borderColor: '#22c55e',
+              opacity: paidSelected ? 0.5 : 1,
+            }}
+            onClick={() => handleChoice('free')}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wide text-green-600 bg-green-100 rounded-full px-2 py-0.5 self-start">Free</span>
+            <p className="text-xs font-semibold text-gray-900 leading-tight">{alt.name}</p>
+            <p className="text-xs text-gray-500 leading-snug line-clamp-2">{alt.description}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">{alt.address}</p>
+          </button>
+
+          {/* Paid option */}
+          <button
+            className={cardBase}
+            style={{
+              background: paidSelected ? SELECTED_BG : '#ffffff',
+              borderColor: '#f87171',
+              opacity: freeSelected ? 0.5 : 1,
+            }}
+            onClick={() => handleChoice('paid')}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wide text-red-500 self-start">Paid</span>
+            <p className="text-xs font-semibold text-gray-900 leading-tight">{activity.name}</p>
+            <p className="text-xs text-gray-500 leading-snug line-clamp-2">{activity.description}</p>
+            <p className="text-xs font-semibold mt-0.5" style={{ color: '#ef4444' }}>
+              ${activity.cost_bbd} BBD
+              {activity.cost_gbp && activity.cost_gbp > 0 ? ` (~£${activity.cost_gbp})` : ''}
+            </p>
+          </button>
+        </div>
+
+        {/* Keep both / deciding label */}
+        {bothSelected ? (
+          <p className="text-[11px] text-gray-400 text-center">Deciding on the day</p>
+        ) : (
+          <button
+            className="text-[11px] text-gray-400 underline underline-offset-2 text-center"
+            onClick={() => handleChoice('both')}
+          >
+            Keep both — decide on the day
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -222,16 +300,18 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2 pt-1">
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
-                style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
-              >
-                <Globe size={13} />
-                View Website
-              </a>
+              {showWebsite && (
+                <a
+                  href={websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors active:bg-gray-50"
+                  style={{ borderColor: '#4A9CB8', color: '#4A9CB8' }}
+                >
+                  <Globe size={13} />
+                  View Website
+                </a>
+              )}
 
               <a
                 href={mapsUrl}

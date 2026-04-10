@@ -4,6 +4,34 @@ import type { BarbadosDayPlan, CruiseTouristPreferences } from '../types';
 // Builds the system + user prompt for the Gemini plan-generation call.
 // Wire into a real generateContent call when the backend/edge function is ready.
 
+const VIBE_BLENDS: Record<string, { active: number; culture: number; scenic: number; nightlife: number }> = {
+  relaxing:         { active: 10, culture: 25, scenic: 65, nightlife: 0 },
+  cultural:         { active: 10, culture: 70, scenic: 20, nightlife: 0 },
+  active:           { active: 55, culture: 10, scenic: 35, nightlife: 0 },
+  romantic:         { active: 15, culture: 25, scenic: 60, nightlife: 0 },
+  party:            { active: 20, culture:  5, scenic: 25, nightlife: 50 },
+  luxurious:        { active: 15, culture: 25, scenic: 60, nightlife: 0 },
+  'thrill-seeking': { active: 75, culture:  5, scenic: 20, nightlife: 0 },
+};
+
+function calcVibeBlend(vibes: string[]) {
+  const valid = vibes.filter(v => VIBE_BLENDS[v]);
+  const base = valid.length > 0 ? valid : ['relaxing'];
+  const sum = { active: 0, culture: 0, scenic: 0, nightlife: 0 };
+  for (const v of base) {
+    sum.active    += VIBE_BLENDS[v].active;
+    sum.culture   += VIBE_BLENDS[v].culture;
+    sum.scenic    += VIBE_BLENDS[v].scenic;
+    sum.nightlife += VIBE_BLENDS[v].nightlife;
+  }
+  return {
+    active:    Math.round(sum.active    / base.length),
+    culture:   Math.round(sum.culture   / base.length),
+    scenic:    Math.round(sum.scenic    / base.length),
+    nightlife: Math.round(sum.nightlife / base.length),
+  };
+}
+
 export function buildGeminiPrompt(
   preferences: CruiseTouristPreferences,
   previousPlans: string,
@@ -12,75 +40,143 @@ export function buildGeminiPrompt(
 ): string {
   const { startTime, returnTime, availableHours } = preferences.shipDetails;
   const groupSize = preferences.groupSize ?? 2;
-  const vibes = preferences.vibes.join(', ');
-  const meals = preferences.meals.length > 0 ? preferences.meals.join(', ') : 'none';
-  const budget = preferences.budget;
   const specificActivities = preferences.specificActivities || 'none specified';
   const dietaryRequirements = preferences.dietaryRequirements || 'none';
   const accessibilityNeeds = preferences.accessibilityNeeds || 'none';
 
-  return `You are a local Barbados experience expert helping cruise tourists discover authentic, non-touristy experiences. Your goal is to create the perfect personalised day itinerary.
+  const blended = calcVibeBlend(preferences.vibes);
+  const isFree = preferences.budgetGbp === 0;
+  const budgetDisplay = preferences.budgetGbp >= 200
+    ? '£200+ per person'
+    : `£${preferences.budgetGbp} per person`;
 
-STRICT RULES — NEVER BREAK THESE:
-- Every activity must be a real, named, verifiable place in Barbados
+  const modeMap: Record<string, string> = { walk: 'walking', 'public-transport': 'minibus', taxi: 'taxi' };
+  const allowedModes = preferences.transportPreferences.map(t => modeMap[t] || t);
+  const allowedTransferModes = allowedModes.join(', ');
+
+  const transportRuleLines: string[] = [];
+  if (!allowedModes.includes('taxi')) transportRuleLines.push('Do not suggest taxi — the user has not selected it.');
+  if (!allowedModes.includes('walking')) transportRuleLines.push('Do not suggest walking between stops — the user has not selected it.');
+  if (allowedModes.includes('walking')) transportRuleLines.push('Walking is allowed but never exceed 30 minutes between any two stops.');
+  if (allowedModes.includes('minibus')) transportRuleLines.push('Public transport means bus or ZR route van only.');
+  const transportRules = transportRuleLines.join('\n');
+
+  const mealsFiltered = preferences.meals.filter(m => m !== 'skip');
+  const mealsStr = mealsFiltered.length > 0
+    ? mealsFiltered.join(', ')
+    : 'none — do not include any food or drink stops';
+
+  return `You are a local Barbados experience expert helping cruise tourists discover
+authentic, non-touristy experiences. Your goal is to create the perfect
+personalised day itinerary using ONLY places from the verified list provided.
+
+═══════════════════════════════════════
+VERIFIED PLACES POOL
+═══════════════════════════════════════
+${seedLocations}
+
+You MUST only suggest places from this verified list. Do not suggest any
+place not on this list. Do not invent business names. Do not add places
+you know from your training data that are not on this list.
+
+═══════════════════════════════════════
+STRICT RULES — NEVER BREAK THESE
+═══════════════════════════════════════
+- Every activity must come from the verified places pool above
 - Never repeat an activity within the same plan
-- Never repeat activities from this user's previously saved plans: ${previousPlans}
-- Start time and end time MUST be strictly respected: ${startTime} to ${returnTime}
-- Always build in a 45-minute buffer before ${returnTime} to ensure the user returns to the ship on time
-- Never suggest food or drink stops unless the user has specifically selected a meal (breakfast, lunch, dinner, snacks)
-- Never suggest grocery stores, corner shops or supermarkets — shopping means local markets, boutiques, craft shops and souvenirs
-- Never stack the same type of activity back to back — vary the pace and energy of the day
-- There should always be a natural flow to the day — build in recovery time after high-energy activities
+- Never repeat activities from this user's previous plans: ${previousPlans}
+- Start and end times MUST be strictly respected: ${startTime} to ${returnTime}
+- Always build in a 45-minute buffer before ${returnTime} to ensure the
+  user returns to the ship on time
+- Do not add any food or drink stops unless meals are explicitly listed
+  in the meals section below — never add food based on vibe
+- Never suggest grocery stores, supermarkets, or chains
 
-PLAN PARAMETERS:
-- Available time: ${availableHours} hours (${startTime} to ${returnTime} minus 45 min buffer)
+═══════════════════════════════════════
+LOCATION TYPES
+═══════════════════════════════════════
+For each activity, set is_geographic correctly:
+- is_geographic: true — beaches, bays, hills, viewpoints, parks, nature
+  reserves, botanical gardens, any natural feature
+- is_geographic: false — named businesses: restaurants, bars, distilleries,
+  museums, ticketed attractions
+Never attach a business name to a geographic feature.
+
+═══════════════════════════════════════
+TRANSPORT RULES
+═══════════════════════════════════════
+The user's chosen transport modes are: ${allowedTransferModes}
+${transportRules}
+Every transfer leg mode field must only ever be one of: ${allowedTransferModes}
+No exceptions. If the user has not chosen taxi, never suggest taxi.
+If the user has not chosen walking, never suggest walking between stops.
+If walking is chosen, never exceed 30 minutes walking between any two stops.
+Public transport in Barbados means bus or ZR route van only.
+
+═══════════════════════════════════════
+BUDGET
+═══════════════════════════════════════
+Budget per person: ${budgetDisplay}
+
+${isFree ? `ZERO BUDGET RULES — STRICTLY ENFORCED:
+- Every activity must be completely free (cost_bbd: 0)
+- All activities must be within walking distance of Bridgetown Cruise Terminal
+  and within walking distance of one another
+- No paid transport between stops
+- If any selected meal or must-do activity typically requires payment, you
+  must still include it BUT also generate a free alternative for it:
+  - Set has_free_alternative: true on the paid activity
+  - Populate the free_alternative object with a genuinely free nearby option
+  - The free alternative must also be within walking distance` : `Stay within the budget. Do not suggest activities that would exceed it.`}
+
+═══════════════════════════════════════
+ACTIVITY MIX
+═══════════════════════════════════════
+Based on the user's selected vibes, structure the activity mix as follows
+(meals excluded — they are handled separately):
+- ${blended.active}% active/outdoors activities
+- ${blended.culture}% culture/sightseeing activities
+- ${blended.scenic}% rest/scenic activities
+- ${blended.nightlife}% nightlife/social activities
+
+Thrill-seeking activities in Barbados specifically mean: surfing at
+Bathsheba, jet skiing, cliff jumping, zipline, snorkelling, kitesurfing.
+
+Party vibe means: social markets, lively beach bars, sunset spots,
+local music — not late-night clubbing (users are back on ship by evening).
+
+═══════════════════════════════════════
+MEALS
+═══════════════════════════════════════
+Meals requested: ${mealsStr}
+${mealsFiltered.length === 0 ?
+  'Include ZERO food or drink stops. Activities only.' :
+  'Place meals at appropriate times only: breakfast early morning, lunch midday, drinks/dinner in the evening.'}
+
+═══════════════════════════════════════
+PLAN PARAMETERS
+═══════════════════════════════════════
+- Available time: ${availableHours} hours (${startTime} to ${returnTime})
 - Group size: ${groupSize} people
-- Budget: ${budget} (strictly stay within this unless the user has opted for a second search, in which case you may suggest options up to 10% over budget with a clear warning)
-- Selected vibes: ${vibes}
-- Specific activities requested by user (MUST include if possible): ${specificActivities}
-- Meals requested: ${meals} (place meals at appropriate times — breakfast early, lunch midday, dinner evening. Each meal = 90–120 mins)
-- Weather today in Barbados: ${weather} (do not suggest beach or water activities if stormy or heavy rain)
+- Specific requests (include if possible): ${specificActivities}
+- Dietary requirements: ${dietaryRequirements}
+- Accessibility needs: ${accessibilityNeeds}
+- Weather today: ${weather}
+- Do not suggest beach or water activities if stormy or heavy rain
 
-USER PROFILE:
-- Dietary requirements: ${dietaryRequirements} (if any, filter food suggestions accordingly)
-- Accessibility needs: ${accessibilityNeeds} (if any, flag venues with stairs, uneven terrain, or limited access)
-- Previously visited places from saved plans: ${previousPlans} (do not repeat these)
+═══════════════════════════════════════
+JSON OUTPUT REQUIREMENTS
+═══════════════════════════════════════
+Every activity must include:
+name, description, address (full Barbados address), startTime, endTime,
+duration_minutes, cost_bbd, cost_gbp, category, why_special,
+google_maps_search_query, lat, lng, emoji, is_geographic
 
-WHEN CHOOSING ACTIVITIES:
-- Match vibes carefully — do not suggest party boats for family days, watersports for relaxing shopping trips, or high-energy activities for wellness/relaxation vibes
-- Consider group size for activity capacity — some activities have limits
-- Always check that activities are likely open at the time suggested (use your knowledge of typical Barbados opening hours)
-- Use average time spent at each location to build a realistic schedule — Google Maps/Places data is a good reference for this
-- Consider travel time between locations — Barbados is small but Bridgetown traffic can be slow. Budget 15–30 mins between stops depending on distance
-- Balance the energy of the day — mix active and relaxed moments
-- Prioritise what locals love, hidden gems, and authentic Barbadian experiences over tourist traps
-- The seed list below contains verified local venues — include 2–3 from this list per plan, but go beyond it to discover more
+Every transfer leg must include:
+mode — must only be one of: ${allowedTransferModes}
 
-SOURCES TO DRAW FROM (in order of preference):
-1. Your own verified knowledge of Barbados
-2. VisitBarbados.org
-3. TripAdvisor Barbados listings
-4. Google Maps/Places data (opening hours, time spent, reviews)
-5. GetYourGuide and Viator for activity options
-6. r/Barbados and local Barbados travel blogs for hidden gems and local recommendations
-7. Expedia Barbados experiences
-8. The verified seed list: ${seedLocations}
-
-FOR EACH ACTIVITY RETURN:
-- name
-- description (warm, local, personal tone — not corporate)
-- address (full Barbados address)
-- startTime and endTime
-- duration_minutes
-- cost per person in both BBD and GBP (1 GBP = 2.3 BBD)
-- category
-- why_special (what makes this place worth visiting)
-- google_maps_search_query
-- lat and lng (GPS coordinates)
-- accessibility_notes (only if user has accessibility needs)
-- over_budget_warning (only if second search and item exceeds budget by up to 10%)
-
-Return in the exact same JSON structure as the existing BarbadosBespoke itinerary format.`;
+Include has_free_alternative and free_alternative only where applicable.
+Return valid JSON matching the existing BarbadosDayPlan structure exactly.`;
 }
 
 export interface GeneratePlanRequest {

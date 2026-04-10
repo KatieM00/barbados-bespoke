@@ -660,21 +660,41 @@ const PlanForm: React.FC<PlanFormProps> = ({ onSubmit }) => {
     </div>
   );
 
-  const renderStep8 = () => (
-    <div className="flex flex-col gap-4 w-full">
-      <div>
-        <h2 className="text-2xl font-bold" style={{ color: '#1d3e49' }}>What's your budget?</h2>
-        <p className="text-sm mt-1" style={{ color: '#4a7a8a' }}>Drag the slider to set your budget per person.</p>
-      </div>
+  const renderStep8 = () => {
+    const hasMealsConflict = budgetGbp === 0 &&
+      selectedMeals.some(m => m !== 'skip');
+    const hasWaterSportsConflict = budgetGbp === 0 &&
+      selectedMustDos.includes('water-sports');
+    const showConflictWarning = hasMealsConflict || hasWaterSportsConflict;
 
-      <BudgetSlider value={budgetGbp} onChange={setBudgetGbp} />
+    return (
+      <div className="flex flex-col gap-4 w-full">
+        <div>
+          <h2 className="text-2xl font-bold" style={{ color: '#1d3e49' }}>What's your budget?</h2>
+          <p className="text-sm mt-1" style={{ color: '#4a7a8a' }}>Drag the slider to set your budget per person.</p>
+        </div>
 
-      <div className="flex flex-col gap-1 mt-2">
-        <NextBtn onClick={next}>Next →</NextBtn>
-        <BackBtn onClick={back} />
+        <BudgetSlider value={budgetGbp} onChange={setBudgetGbp} />
+
+        {showConflictWarning && (
+          <div
+            className="flex items-start gap-3 px-4 py-3 rounded-xl"
+            style={{ background: '#fffbeb', border: '1px solid #fcd34d' }}
+          >
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: '#d97706' }} />
+            <p className="text-xs leading-relaxed" style={{ color: '#92400e' }}>
+              Heads up — you've selected meals or activities that may have a cost. We'll show you free alternatives in your plan so you can decide on the day.
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1 mt-2">
+          <NextBtn onClick={next}>Next →</NextBtn>
+          <BackBtn onClick={back} />
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderStep9 = () => (
     <div className="flex flex-col gap-4 w-full">

@@ -88,6 +88,24 @@ export interface BarbadosActivity {
   qr_code_id?: string;
   stamp_emoji?: string;
   stamp_name?: string;
+  // true for natural/scenic locations (beaches, hills, viewpoints, parks)
+  // false or undefined for named businesses
+  is_geographic?: boolean;
+  // only populated after Google Places validation confirms a real website
+  verified_website?: string;
+  // true when this is a paid activity and user budget is £0
+  has_free_alternative?: boolean;
+  free_alternative?: {
+    name: string;
+    description: string;
+    address: string;
+    lat?: number;
+    lng?: number;
+    google_maps_search_query: string;
+    why_special: string;
+  };
+  // set by user interaction on conflict card — null by default
+  user_choice?: 'free' | 'paid' | 'both' | null;
 }
 
 export interface TransferLeg {
