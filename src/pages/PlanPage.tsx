@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { Sparkles, Eye, Pencil, Check, Dice5, BookmarkPlus, Share2, GripVertical, Trash2, Plus, Search, X, Navigation, DollarSign, Sun, Footprints, Car, Bus } from 'lucide-react';
-import type { BarbadosDayPlan, BarbadosActivity, ItineraryEvent, TransferLeg, CruiseTouristPreferences } from '../types';
-import { LOADING_MESSAGES, bbdToGbp } from '../types';
+import type { BarbadosDayPlan, BarbadosActivity, ItineraryEvent, TransferLeg, CruiseTouristPreferences, ActivePlan } from '../types';
+import { LOADING_MESSAGES, bbdToGbp, ACTIVE_PLAN_KEY } from '../types';
 import { ActivityCard } from '../components/plan/ActivityCard';
 import StreetViewModal from '../components/plan/StreetViewModal';
 import MobileHeader from '../components/layout/MobileHeader';
@@ -161,6 +162,9 @@ const PlanPage: React.FC = () => {
   const [showAddMore, setShowAddMore] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [goModal, setGoModal] = useState<{ mapsUrl: string; planStartTime: string; currentTime: string } | null>(null);
+
+  const navigate = useNavigate();
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -185,6 +189,7 @@ const PlanPage: React.FC = () => {
     try {
       const generated = await generateBarbadosPlan(preferences);
       clearInterval(msgInterval);
+      console.log('PLAN_GENERATED: plan =', generated);
       const actCount = generated.events.filter((e) => e.type === 'activity').length;
       setRevealedCount(surprise ? (actCount > 0 ? 1 : 0) : actCount);
       setPlan(generated);
@@ -210,6 +215,7 @@ const PlanPage: React.FC = () => {
   const [sessionSuggestions, setSessionSuggestions] = useState<string[]>([]);
 
   const handleSubmit = async (values: PlanFormValues) => {
+    console.log('PLAN_FORM_SUBMIT: startLocation =', values.startLocation);
     const preferences: CruiseTouristPreferences = {
       shipDetails: values.shipDetails,
       groupType: values.groupType,
@@ -221,6 +227,7 @@ const PlanPage: React.FC = () => {
       planDate: new Date().toISOString().split('T')[0],
       previouslySuggested: sessionSuggestions.length > 0 ? sessionSuggestions.join(', ') : undefined,
     };
+    console.log('PLAN_PREFERENCES: startLocation =', preferences.shipDetails);
     setCurrentPreferences(preferences);
     await runGeneration(preferences, values.surpriseMode);
   };
@@ -266,27 +273,78 @@ const PlanPage: React.FC = () => {
     }
   };
 
-  // ── Go (from bottom nav) — save + open Maps ───────────────────────────────────
+  // ── Go (from bottom nav) — full multi-stop Maps flow ─────────────────────────
 
   useEffect(() => {
     const handleGo = () => {
       if (!plan) return;
+
+      console.log('GO_PRESSED: startLocation =', plan.preferences.shipDetails);
+      console.log('GO_FLOW: saving plan and checking start time');
+
       try { localStorage.setItem(SAVE_KEY, JSON.stringify(plan)); } catch { /* storage full */ }
-      const firstActivity = plan.events.find((e) => e.type === 'activity');
-      const dest = firstActivity
-        ? (firstActivity.data as BarbadosActivity).google_maps_search_query ||
-          (firstActivity.data as BarbadosActivity).address
-        : null;
-      if (dest) {
-        window.open(
-          `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=walking`,
-          '_blank'
-        );
+
+      // Times
+      const planStartTime = plan.preferences.shipDetails.startTime; // HH:mm
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      console.log('GO_FLOW: planStartTime =', planStartTime, 'deviceTime =', currentTime);
+
+      // Origin
+      const origin = plan.preferences.shipDetails.departurePort || 'Bridgetown Cruise Terminal, Barbados';
+      console.log('GO_FLOW: origin =', origin);
+
+      // Waypoints — all activities, capped at 9
+      const allWaypoints = plan.events
+        .filter((e) => e.type === 'activity')
+        .map((e) => (e.data as BarbadosActivity).google_maps_search_query || (e.data as BarbadosActivity).address)
+        .filter(Boolean);
+      const waypoints = allWaypoints.slice(0, 9);
+      if (allWaypoints.length > 9) console.log('GO_FLOW: waypoints capped at 9');
+      console.log('GO_FLOW: waypoints =', waypoints);
+
+      // Destination
+      const destination = plan.preferences.shipDetails.endLocation || origin;
+      console.log('GO_FLOW: destination =', destination);
+
+      // Travel mode
+      const modeMap: Record<string, string> = { walk: 'walking', 'public-transport': 'transit', taxi: 'driving' };
+      const firstPref = plan.preferences.transportPreferences?.[0] ?? 'taxi';
+      const travelMode = modeMap[firstPref] ?? 'driving';
+      console.log('GO_FLOW: travelMode =', travelMode);
+
+      // Build URL
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${waypoints.map(encodeURIComponent).join('|')}&travelmode=${travelMode}`;
+      console.log('GO_FLOW: mapsUrl =', mapsUrl);
+
+      // Transport mode for ActivePlan
+      const activePlanMode = (travelMode as 'walking' | 'transit' | 'driving');
+
+      const buildActivePlan = (hasStarted: boolean): ActivePlan => ({
+        plan,
+        startLocation: origin,
+        endLocation: destination,
+        primaryTransportMode: activePlanMode,
+        activatedAt: new Date().toISOString(),
+        hasStarted,
+      });
+
+      if (currentTime >= planStartTime) {
+        // Start now
+        try { localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(buildActivePlan(true))); } catch { /* storage full */ }
+        navigate('/');
+        window.open(mapsUrl, '_blank');
+        console.log('GO_FLOW: plan started immediately');
+      } else {
+        // Show early-start modal
+        try { localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(buildActivePlan(false))); } catch { /* storage full */ }
+        setGoModal({ mapsUrl, planStartTime, currentTime });
       }
     };
+
     window.addEventListener('go_pressed', handleGo);
     return () => window.removeEventListener('go_pressed', handleGo);
-  }, [plan]);
+  }, [plan, navigate]);
 
   // ── Edit: drag-and-drop ───────────────────────────────────────────────────────
 
@@ -718,6 +776,49 @@ const PlanPage: React.FC = () => {
           onAdd={handleAddActivity}
           onClose={() => setShowAddMore(false)}
         />
+      )}
+
+      {/* Early-start modal */}
+      {goModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-5">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setGoModal(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl px-6 py-6 w-full max-w-sm flex flex-col gap-4">
+            <p className="text-sm font-medium text-gray-700 leading-relaxed text-center">
+              Your plan has been saved and is due to start at{' '}
+              <span className="font-bold text-gray-900">{goModal.planStartTime}</span> — it's currently{' '}
+              <span className="font-bold text-gray-900">{goModal.currentTime}</span>. Do you want to start now anyway?
+            </p>
+            <button
+              onClick={() => {
+                const stored = localStorage.getItem(ACTIVE_PLAN_KEY);
+                if (stored) {
+                  try {
+                    const ap: ActivePlan = JSON.parse(stored);
+                    localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify({ ...ap, hasStarted: true }));
+                  } catch { /* ignore */ }
+                }
+                setGoModal(null);
+                navigate('/');
+                window.open(goModal.mapsUrl, '_blank');
+                console.log('GO_FLOW: user chose to start early');
+              }}
+              className="w-full py-3 rounded-xl font-bold text-sm"
+              style={{ background: '#E6D055', color: '#1d3e49' }}
+            >
+              Yes, let's go!
+            </button>
+            <button
+              onClick={() => {
+                setGoModal(null);
+                navigate('/');
+                console.log('GO_FLOW: user deferred start, redirecting to home');
+              }}
+              className="w-full py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600"
+            >
+              No, remind me later
+            </button>
+          </div>
+        </div>
       )}
 
       {toast && <Toast message={toast} />}

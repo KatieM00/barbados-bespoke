@@ -62,9 +62,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const gbp = bbdToGbp(activity.cost_bbd);
 
-  // For geographic activities, use Street View / panorama URL when coordinates are available
-  const mapsUrl = activity.is_geographic && activity.lat && activity.lng
-    ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${activity.lat},${activity.lng}`
+  // Open in Maps — always a standard Google Maps search view, never Street View
+  const mapsUrl = activity.lat && activity.lng
+    ? `https://www.google.com/maps/search/?api=1&query=${activity.lat},${activity.lng}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
         activity.google_maps_search_query || activity.address
       )}`;
@@ -72,9 +72,16 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
   const isFoodVenue = FOOD_CATEGORIES.has(activity.category);
   const menuUrl = activity.menu_url ?? null;
 
-  // Website: only show if verified_website exists and activity is not geographic
-  const showWebsite = !activity.is_geographic && !!activity.verified_website;
+  // Website: only show if verified_website exists and is a non-empty string
+  const showWebsite = !!activity.verified_website;
   const websiteUrl = activity.verified_website ?? '';
+
+  React.useEffect(() => {
+    if (!showWebsite) {
+      console.log('Website button hidden for:', activity.name, '— no verified_website');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadPlacesData = async () => {
     if (placesLoaded || placesLoading) return;

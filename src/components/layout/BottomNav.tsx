@@ -24,7 +24,7 @@ const BottomNav: React.FC = () => {
   }, [location, isPlanPage]);
 
   const handleGoPress = () => {
-    // Dispatch a save request to PlanPage, then open Maps
+    console.log('BOTTOM_NAV: go_pressed event dispatched');
     window.dispatchEvent(new Event('go_pressed'));
   };
 

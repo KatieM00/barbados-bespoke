@@ -137,6 +137,17 @@ export interface BarbadosDayPlan {
   created_at?: string;
 }
 
+export interface ActivePlan {
+  plan: BarbadosDayPlan;
+  startLocation: string;
+  endLocation: string;
+  primaryTransportMode: 'walking' | 'transit' | 'driving';
+  activatedAt: string; // ISO timestamp
+  hasStarted: boolean; // true if user confirmed start
+}
+
+export const ACTIVE_PLAN_KEY = 'barbados_active_plan';
+
 // Stamp Passport types
 export interface Location {
   id: string;
